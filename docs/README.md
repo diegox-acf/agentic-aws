@@ -43,14 +43,14 @@ generating it. You learn AWS by making the mistakes, not by reading generated co
 | 7 | [P6 · Containers (later)](07-p6-containers.md) | ECR, ECS Fargate, autoscaling, then EKS | Java or Go | docker-patterns, kubernetes-patterns, `/ecc:build-fix` |
 | — | [Cheat sheet](99-cheatsheet.md) | Cost traps, teardown, commands | — | Command matrix |
 
-## Your machine (checked 2026-10-07)
+## Your machine (checked 2026-10-08, after Module 1)
 
 | Tool | Version | Note |
 |---|---|---|
-| Claude Code + ECC | `ecc@ecc` 2.2.3, user scope, hook profile `standard` | No ECC rule packs installed yet (plugins can't ship rules). Module 1 fixes this |
-| AWS CLI | 2.34.49 | Default creds = an admin IAM user with long-lived keys, region `us-east-1`. Module 1 replaces this with SSO |
-| Terraform | 1.14.7 | Fine (≥ 1.10 needed for S3 native locking). 1.16.x is current |
-| Terragrunt | 0.63.6 | **Upgrade.** Old CLI: no `run --all`, no `backend bootstrap`, no `root.hcl` defaults |
+| Claude Code + ECC | `ecc@ecc` 2.2.3, user scope, hook profile `standard` | Rule packs `common` + `golang` copied into `.claude/rules/ecc/` (plugins can't ship rules) |
+| AWS CLI | 2.34.49 | SSO profile `learn-admin` (IAM Identity Center, `LearnAdmin` permission set), region `us-east-1` |
+| Terraform | 1.16.5 | ≥ 1.10 needed for S3 native locking |
+| Terragrunt | 1.1.1 | New CLI: `run --all`, `backend bootstrap`, `root.hcl` |
 | Go | 1.26.2 | P1, P6 |
 | Node | 24.13.0 | P2, P3 |
 | Java | Temurin 21 | P5, P6 |
@@ -70,7 +70,8 @@ Linux/macOS/WSL). Two Windows-specific habits:
 
 ## Target repo layout
 
-You build this up gradually; nothing here exists yet except `docs/`.
+You build this up gradually. After Module 1 you have `CLAUDE.md`, `.claude/`, `infra/root.hcl`,
+and the `global/budget` unit; `apps/` and the `dev/` project units arrive with each project.
 
 ```
 learn-aws/
