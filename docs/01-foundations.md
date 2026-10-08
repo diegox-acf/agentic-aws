@@ -242,7 +242,10 @@ description: "Use when creating, editing, or reviewing Terraform modules or Terr
 - Modules: infra/modules/<name>/{main.tf,variables.tf,outputs.tf,versions.tf}
 - Units:   infra/live/<env>/<project>/<unit>/terragrunt.hcl
 - Root:    infra/root.hcl generates backend.tf and provider.tf. Modules never declare
-  `provider` or `backend` blocks; versions.tf only has required_providers.
+  `provider` or `backend` blocks. versions.tf owns `required_version` and `required_providers`
+  (with version constraints); root.hcl must never generate a `terraform {}` block.
+- On Windows, path functions return backslashes. Normalize with
+  `replace(path_relative_to_include(), "\\", "/")` before putting a path in a string or S3 key.
 
 ## Unit template
     include "root" { path = find_in_parent_folders("root.hcl") }
@@ -344,6 +347,9 @@ locals {
   region     = "us-east-1"
   project    = "learn-aws"
   account_id = get_aws_account_id()
+  # Forward slashes on every OS: Windows returns "live\global\budget", which breaks HCL strings
+  # ("\g" is an invalid escape) and would give different S3 state keys than Linux/macOS/CI.
+  unit_path = replace(path_relative_to_include(), "\\", "/")
 }
 
 remote_state {
@@ -354,7 +360,7 @@ remote_state {
   }
   config = {
     bucket       = "${local.project}-tfstate-${local.account_id}"
-    key          = "${path_relative_to_include()}/terraform.tfstate"
+    key          = "${local.unit_path}/terraform.tfstate"
     region       = local.region
     encrypt      = true
     use_lockfile = true # S3-native locking (Terraform >= 1.10), no DynamoDB table
@@ -364,24 +370,16 @@ remote_state {
 generate "provider" {
   path      = "provider.tf"
   if_exists = "overwrite_terragrunt"
+  # Only the provider *configuration*. Provider *requirements* (source, version) live in each
+  # module's versions.tf; Terraform allows one required_providers block per module.
   contents  = <<-EOF
-    terraform {
-      required_version = ">= 1.10"
-      required_providers {
-        aws = {
-          source  = "hashicorp/aws"
-          version = "~> 6.0"
-        }
-      }
-    }
-
     provider "aws" {
       region = "${local.region}"
       default_tags {
         tags = {
           Project   = "${local.project}"
           Env       = "${local.env}"
-          Unit      = "${path_relative_to_include()}"
+          Unit      = "${local.unit_path}"
           ManagedBy = "terragrunt"
         }
       }
@@ -492,8 +490,13 @@ output "budget_name" {
 
 ```hcl
 terraform {
+  required_version = ">= 1.10" # S3 native state locking
+
   required_providers {
-    aws = { source = "hashicorp/aws" }
+    aws = {
+      source  = "hashicorp/aws"
+      version = "~> 6.0"
+    }
   }
 }
 ```

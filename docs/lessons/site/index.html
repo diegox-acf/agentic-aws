@@ -1,0 +1,548 @@
+<title>learn-aws lessons</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,700&family=Instrument+Sans:ital,wght@0,400;0,500;0,600;1,400&family=JetBrains+Mono:wght@400;600&display=swap">
+<style>
+/* Layout: study-notes reader. Lesson list on the left, one reading column, "on this page" rail on wide screens. */
+:root {
+  --bg: #f4f6f3;
+  --surface: #ffffff;
+  --fg: #17211d;
+  --muted: #5a6761;
+  --line: #d9e0db;
+  --accent: #0d6b60;
+  --accent-weak: #dfeeea;
+  --code-bg: #eef2ef;
+  --code-head: #e3e9e5;
+  --code-fg: #1d2a25;
+  --code-hl: #d3e8e1;
+  --hl-key: #8b2f6b;
+  --hl-str: #0d6b60;
+  --hl-com: #7b8781;
+  --hl-num: #9a4a00;
+  --hl-title: #2a5aa6;
+  --info: #2457a6;      --info-bg: #e8eefa;
+  --tip: #2d7a3e;       --tip-bg: #e6f3e8;
+  --important: #6d3fb0; --important-bg: #f0e9fa;
+  --warn: #8a5800;      --warn-bg: #faefd6;
+  --danger: #b3261e;    --danger-bg: #fbe8e6;
+  --learn: #0d6b60;     --learn-bg: #dfeeea;
+  --font-display: "Bricolage Grotesque", "Segoe UI", system-ui, sans-serif;
+  --font-body: "Instrument Sans", "Segoe UI", system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, "Cascadia Mono", Consolas, monospace;
+  --step--1: 0.8125rem;
+  --step-0: 1rem;
+  --step-1: 1.1875rem;
+  --step-2: 1.5rem;
+  --step-3: 2.125rem;
+  --rail: 17rem;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0e1412; --surface: #141c19; --fg: #e3eae6; --muted: #98a69f; --line: #26322d;
+    --accent: #5fc7b6; --accent-weak: #16322d;
+    --code-bg: #111916; --code-head: #18221e; --code-fg: #d8e2dd; --code-hl: #1b322c;
+    --hl-key: #e391c6; --hl-str: #7fd6c6; --hl-com: #6f7d77; --hl-num: #f0b36e; --hl-title: #8fb4f0;
+    --info: #8fb4f0; --info-bg: #17233a; --tip: #7ccf8c; --tip-bg: #16291b;
+    --important: #c3a3f2; --important-bg: #261d38; --warn: #efc16a; --warn-bg: #2c2416;
+    --danger: #f29b93; --danger-bg: #3a1a18; --learn: #5fc7b6; --learn-bg: #16322d;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0e1412; --surface: #141c19; --fg: #e3eae6; --muted: #98a69f; --line: #26322d;
+  --accent: #5fc7b6; --accent-weak: #16322d;
+  --code-bg: #111916; --code-head: #18221e; --code-fg: #d8e2dd; --code-hl: #1b322c;
+  --hl-key: #e391c6; --hl-str: #7fd6c6; --hl-com: #6f7d77; --hl-num: #f0b36e; --hl-title: #8fb4f0;
+  --info: #8fb4f0; --info-bg: #17233a; --tip: #7ccf8c; --tip-bg: #16291b;
+  --important: #c3a3f2; --important-bg: #261d38; --warn: #efc16a; --warn-bg: #2c2416;
+  --danger: #f29b93; --danger-bg: #3a1a18; --learn: #5fc7b6; --learn-bg: #16322d;
+  color-scheme: dark;
+}
+
+* { box-sizing: border-box; }
+html { -webkit-text-size-adjust: 100%; }
+body {
+  background: var(--bg);
+  color: var(--fg);
+  font-family: var(--font-body);
+  font-size: var(--step-0);
+  line-height: 1.6;
+}
+a { color: var(--accent); text-underline-offset: 0.18em; }
+a:focus-visible, button:focus-visible, summary:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 3px; }
+
+.shell { display: grid; grid-template-columns: var(--rail) minmax(0, 1fr); min-height: 100vh; }
+
+/* ---------- lesson rail ---------- */
+.rail {
+  position: sticky;
+  top: env(safe-area-inset-top, 0px);
+  align-self: start;
+  height: 100vh;
+  overflow-y: auto;
+  border-right: 1px solid var(--line);
+  background: var(--surface);
+  padding-block: 1.5rem;
+  padding-inline: 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+}
+.brand-name {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: var(--step-1);
+  line-height: 1.15;
+  letter-spacing: -0.01em;
+  padding-inline: 0.5rem;
+}
+.rail-label {
+  font-size: 0.6875rem;
+  text-transform: uppercase;
+  letter-spacing: 0.09em;
+  color: var(--muted);
+  padding-inline: 0.5rem;
+}
+.lessons { list-style: none; margin: 0; padding: 0; display: grid; gap: 2px; }
+.lessons a {
+  display: grid;
+  gap: 0.1rem;
+  padding: 0.45rem 0.5rem;
+  border-radius: 6px;
+  color: var(--fg);
+  text-decoration: none;
+  font-size: 0.9rem;
+  line-height: 1.3;
+}
+.lessons a:hover, .lessons a[aria-current="page"] { background: var(--accent-weak); }
+.lessons a[aria-current="page"] { color: var(--accent); font-weight: 600; }
+.lesson-date { font-family: var(--font-mono); font-size: 0.6875rem; color: var(--muted); font-variant-numeric: tabular-nums; font-weight: 400; }
+
+/* ---------- main ---------- */
+.main {
+  display: grid;
+  grid-template-columns: minmax(0, 46rem) minmax(0, 14rem);
+  justify-content: center;
+  gap: 3rem;
+  padding-block: 2.5rem 5rem;
+  padding-inline: 2.5rem;
+}
+.doc { min-width: 0; }
+.eyebrow { font-family: var(--font-mono); font-size: 0.75rem; letter-spacing: 0.06em; text-transform: uppercase; color: var(--accent); margin-bottom: 0.5rem; min-height: 1em; }
+.toc { position: sticky; top: calc(env(safe-area-inset-top, 0px) + 2.5rem); align-self: start; font-size: var(--step--1); display: grid; gap: 0.5rem; }
+.toc ol { list-style: none; margin: 0; padding: 0; display: grid; gap: 0.3rem; border-left: 1px solid var(--line); }
+.toc button {
+  all: unset;
+  cursor: pointer;
+  display: block;
+  padding: 0.1rem 0 0.1rem 0.75rem;
+  margin-left: -1px;
+  border-left: 2px solid transparent;
+  color: var(--muted);
+  line-height: 1.35;
+}
+.toc button:hover { color: var(--fg); border-left-color: var(--line); }
+.toc button:focus-visible { outline: 2px solid var(--accent); }
+
+/* ---------- prose ---------- */
+.prose h1, .prose h2, .prose h3 { font-family: var(--font-display); line-height: 1.2; text-wrap: balance; letter-spacing: -0.01em; }
+.prose h1 { font-size: var(--step-3); margin: 0 0 1rem; font-weight: 700; }
+.prose h2 { font-size: var(--step-2); margin: 2.75rem 0 0.75rem; padding-top: 1.25rem; border-top: 1px solid var(--line); font-weight: 600; scroll-margin-top: 1.5rem; }
+.prose h3 { font-size: var(--step-1); margin: 2rem 0 0.5rem; font-weight: 600; scroll-margin-top: 1.5rem; }
+.prose p, .prose li { max-width: 68ch; }
+.prose p { margin: 0 0 1rem; }
+.prose ul, .prose ol { padding-left: 1.4rem; margin: 0 0 1rem; }
+.prose li { margin: 0.35rem 0; }
+.prose li > p { margin: 0 0 0.5rem; }
+.prose hr { border: 0; margin: 2rem 0 0; }
+.prose strong { font-weight: 600; }
+.prose blockquote { margin: 1.25rem 0; padding: 0.75rem 1rem; background: var(--accent-weak); border-radius: 8px; }
+.prose blockquote > :last-child { margin-bottom: 0; }
+.prose :not(pre) > code {
+  font-family: var(--font-mono);
+  font-size: 0.86em;
+  background: var(--code-bg);
+  color: var(--code-fg);
+  padding: 0.1em 0.35em;
+  border-radius: 4px;
+  overflow-wrap: anywhere;
+}
+
+/* callouts: > [!NOTE] etc. */
+.callout { padding: 0.8rem 1rem 0.9rem; border-radius: 8px; background: var(--c-bg); border: 1px solid color-mix(in srgb, var(--c-fg) 22%, transparent); }
+.callout-label {
+  font-family: var(--font-mono);
+  font-size: 0.6875rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--c-fg);
+  margin-bottom: 0.35rem;
+}
+.callout.info      { --c-fg: var(--info);      --c-bg: var(--info-bg); }
+.callout.tip       { --c-fg: var(--tip);       --c-bg: var(--tip-bg); }
+.callout.important { --c-fg: var(--important); --c-bg: var(--important-bg); }
+.callout.warn      { --c-fg: var(--warn);      --c-bg: var(--warn-bg); }
+.callout.danger    { --c-fg: var(--danger);    --c-bg: var(--danger-bg); }
+.callout.learn     { --c-fg: var(--learn);     --c-bg: var(--learn-bg); }
+
+/* code blocks */
+.code-block { margin: 1rem 0 1.25rem; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; background: var(--code-bg); }
+.code-head {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.3rem 0.4rem 0.3rem 0.9rem;
+  background: var(--code-head);
+  border-bottom: 1px solid var(--line);
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  min-height: 2.1rem;
+}
+.code-title { color: var(--fg); font-weight: 600; min-width: 0; overflow-wrap: anywhere; }
+.code-lang { color: var(--muted); margin-left: auto; text-transform: lowercase; }
+.copy-btn {
+  font: 600 0.6875rem var(--font-body);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--muted);
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 5px;
+  padding: 0.25rem 0.55rem;
+  cursor: pointer;
+}
+.copy-btn:hover { color: var(--accent); border-color: var(--accent); }
+.code-block pre {
+  margin: 0;
+  overflow-x: auto;
+  color: var(--code-fg);
+  padding-block: 0.85rem;
+  font-family: var(--font-mono);
+  font-size: 0.8125rem;
+  line-height: 1.6;
+  tab-size: 2;
+}
+.code-block pre code { display: inline-block; min-width: 100%; font-family: inherit; background: none; }
+.code-block .line { display: block; padding-inline: 1.1rem; min-height: 1.6em; }
+.code-block .line.hl { background: var(--code-hl); box-shadow: inset 3px 0 0 var(--accent); }
+
+/* tables */
+.table-wrap { overflow-x: auto; margin: 1rem 0 1.5rem; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); }
+.prose table { border-collapse: collapse; width: 100%; font-size: 0.875rem; font-variant-numeric: tabular-nums; }
+.prose th, .prose td { text-align: left; vertical-align: top; padding: 0.55rem 0.8rem; border-bottom: 1px solid var(--line); }
+.prose th { font-weight: 600; font-size: 0.75rem; letter-spacing: 0.05em; text-transform: uppercase; color: var(--muted); background: var(--bg); }
+.prose tr:last-child td { border-bottom: 0; }
+
+/* check-yourself answers */
+.prose details { margin: 0.4rem 0 0.6rem; }
+.prose summary { cursor: pointer; color: var(--accent); font-size: 0.875rem; font-weight: 600; width: fit-content; }
+.prose details[open] { padding: 0.5rem 0.8rem; background: var(--surface); border: 1px solid var(--line); border-radius: 6px; }
+.prose details[open] summary { margin-bottom: 0.35rem; }
+
+.pager { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 1rem; margin-top: 3.5rem; padding-top: 1.5rem; border-top: 1px solid var(--line); }
+.pager a { display: grid; gap: 0.15rem; text-decoration: none; padding: 0.75rem 1rem; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); min-width: 0; max-width: 100%; }
+.pager a:hover { border-color: var(--accent); }
+.pager small { color: var(--muted); font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.06em; }
+.pager span { color: var(--fg); font-weight: 600; }
+.pager .next { margin-left: auto; text-align: right; }
+
+/* syntax colours (highlight.js classes) */
+.hljs-keyword, .hljs-selector-tag, .hljs-built_in, .hljs-meta .hljs-keyword { color: var(--hl-key); }
+.hljs-string, .hljs-regexp, .hljs-template-string, .hljs-subst { color: var(--hl-str); }
+.hljs-comment, .hljs-quote, .hljs-meta { color: var(--hl-com); font-style: italic; }
+.hljs-number, .hljs-literal, .hljs-symbol { color: var(--hl-num); }
+.hljs-title, .hljs-section, .hljs-type, .hljs-attr, .hljs-attribute, .hljs-name, .hljs-variable { color: var(--hl-title); }
+
+@media (max-width: 1180px) {
+  .main { grid-template-columns: minmax(0, 46rem); }
+  .toc { display: none; }
+}
+@media (max-width: 860px) {
+  .shell { grid-template-columns: minmax(0, 1fr); }
+  .rail { position: static; height: auto; border-right: 0; border-bottom: 1px solid var(--line); padding-inline: 16px; gap: 0.75rem; }
+  .lessons { grid-template-columns: repeat(auto-fill, minmax(min(100%, 15rem), 1fr)); }
+  .main { padding-inline: 16px; padding-block: 1.75rem 4rem; }
+  .prose h1 { font-size: 1.75rem; }
+}
+@media (prefers-reduced-motion: reduce) {
+  * { transition: none !important; scroll-behavior: auto !important; }
+}
+</style>
+
+<div class="shell">
+  <nav class="rail" aria-label="Lessons">
+    <span class="brand-name">learn-aws lessons</span>
+    <div class="rail-label">Lessons</div>
+    <ol class="lessons" id="lessons"></ol>
+  </nav>
+  <main class="main">
+    <article class="doc">
+      <div class="eyebrow" id="eyebrow"></div>
+      <div class="prose" id="content"><p>Loading…</p></div>
+      <nav class="pager" id="pager" aria-label="Previous and next lesson"></nav>
+    </article>
+    <aside class="toc" id="toc" aria-label="On this page"></aside>
+  </main>
+</div>
+
+<script type="application/json" id="docs-data">[{"id":"2026-10-07-tutorial-page-builder","file":"2026-10-07-tutorial-page-builder.md","title":"How the tutorial page is built","date":"2026-10-07","md":"# How the tutorial page is built\n\n## TL;DR\n\n- `docs/site/build.mjs` embeds every tutorial Markdown file into one HTML page as JSON. The\n  browser renders the Markdown itself, so there's no build dependency and no second file to serve.\n- The concept that matters: **escaping depends on context**. The same text needs different\n  escaping inside a `\u003cscript>` tag, inside HTML, and inside a `String.replace` replacement string.\n- The trap: `String.replace(placeholder, someString)` treats `$&`, `$'` and `` $` `` inside\n  `someString` as commands. Docs full of shell snippets will hit that.\n\n## Concepts\n\n**Data island.** A `\u003cscript type=\"application/json\">` block is never executed. The page reads it\nwith `JSON.parse(el.textContent)`. That gives you a single self-contained file that works\noffline and can be hosted anywhere static. The trade-off: the page has to render Markdown at\nruntime, so it depends on a CDN script (marked) and shows plain text if that script is blocked.\n\n**Context-aware escaping.** The browser ends a `\u003cscript>` element at the first `\u003c/script`, even\ninside a JSON string. Escaping `\u003c` as the JSON unicode escape `\u003c` makes that sequence\nimpossible, and `JSON.parse` turns it back into `\u003c`. The same idea, applied to other contexts:\n`&lt;` inside HTML, and a function replacer inside `String.replace`.\n\n**Syntax highlighting is a tree, lines are flat.** highlight.js returns nested `\u003cspan>` tags,\nand a multi-line comment or string is a single span that crosses newlines. Highlighting\nindividual lines means cutting that tree at every newline without producing broken HTML.\n\n## Code walkthrough\n\n### 1. Embedding the docs safely\n\n```js title=\"docs/site/build.mjs\" {3,6-8,11}\n// Escape \"\u003c\" so the JSON cannot close the \u003cscript> tag it is embedded in.\nconst json = JSON.stringify(docs)\n  .replace(/\u003c/g, '\\\\u003c');\n\nconst template = readFileSync(join(here, 'template.html'), 'utf8');\nif (!template.includes('__DOCS_JSON__')) {\n  throw new Error('template.html is missing the __DOCS_JSON__ placeholder');\n}\n\n// Function replacer: markdown contains \"$\" sequences that String.replace would interpret.\nwriteFileSync(join(here, 'index.html'), template.replace('__DOCS_JSON__', () => json));\n```\n\nLine 3 is the script-context escape. In the regex the target is the literal `\u003c`, and the\nreplacement `'\\\\u003c'` writes the six characters `\u003c` into the output. Lines 6–8 fail the\nbuild if someone edits the template and deletes the placeholder; otherwise the build would\n\"succeed\" and ship a page with no content. Line 11 passes a **function** as the replacement,\nso the JSON is inserted exactly as is, `$` signs included.\n\n### 2. Splitting highlighted code into lines\n\nThis is from the `code-lesson` skill's page template. It's what draws the highlighted lines\nin this lesson.\n\n```js title=\"~/.claude/skills/code-lesson/assets/template.html\" {5,8-10,13}\n  function splitLines(html) {\n    const lines = [];\n    const open = [];\n    let cur = '';\n    const re = /(\u003cspan[^>]*>)|(\u003c\\/span>)|(\\n)|([^\u003c\\n]+|\u003c[^>]*>)/g;\n    let m;\n    while ((m = re.exec(html))) {\n      if (m[1]) { open.push(m[1]); cur += m[1]; }\n      else if (m[2]) { open.pop(); cur += m[2]; }\n      else if (m[3]) { lines.push(cur + '\u003c/span>'.repeat(open.length)); cur = open.join(''); }\n      else cur += m[4];\n    }\n    lines.push(cur + '\u003c/span>'.repeat(open.length));\n    return lines;\n  }\n```\n\nLine 5 is a tokenizer: every match is an opening span, a closing span, a newline, or a run of\ntext. Lines 8–9 keep `open` in sync with how deep the tree is at the current position. Line 10\nis the trick: at a newline, close everything still open (so the line is valid HTML on its\nown), then start the next line by reopening the same spans in the same order. Line 13 does the\nsame for the last line.\n\n## Patterns, algorithms & data structures\n\n> [!PATTERN]\n> **Data island + client-side render**: `docs/site/build.mjs:22-31` with\n> `docs/site/template.html` (`\u003cscript type=\"application/json\" id=\"docs-data\">`).\n> **Why here:** one file to publish, no npm dependencies, Markdown stays the single source of\n> truth. **Alternatives:** render to HTML at build time with `marked` as a dependency (no runtime\n> CDN, but adds a `package.json` to the repo), or `fetch()` a separate JSON file (two files to\n> host and keep in sync).\n\n> [!PATTERN]\n> **Fail fast on a contract**: `docs/site/build.mjs:26-28`. The template and the script share\n> an implicit contract (the placeholder). Checking it turns a silent bad output into a loud\n> build error. It's the same idea as validating config at startup instead of at first use.\n\n> [!ALGORITHM]\n> **Span balancing while splitting**: `template.html:356-370`. A single pass over the HTML.\n> Each token is visited once, so the scan is **O(n)** in the HTML length. Each newline also\n> re-emits the open spans, so the total is **O(n + L·d)** for L lines with nesting depth d. In\n> practice d ≤ 3, so it's effectively linear.\n\n> [!DATA-STRUCTURE]\n> **Stack**: `open` in `splitLines` (`push` on `\u003cspan>`, `pop` on `\u003c/span>`). HTML tags nest\n> last-in-first-out, which is exactly what a stack models. **Alternative:** walk the real DOM\n> with a `TreeWalker` and clone ancestor nodes at each newline. That's more robust to arbitrary\n> HTML, but it's more code and slower for something this small.\n\n## Pitfalls\n\n> [!WARNING]\n> **`$` in replacement strings.** `'a'.replace('a', \"$'\")` doesn't insert `$'`; it inserts the\n> text *after* the match. Shell snippets (`$HOME`, `$'...'`) are full of these. Always use a\n> replacer function when the replacement is data: `s.replace(marker, () => data)`.\n\n> [!CAUTION]\n> **Invisible characters in source.** While this builder was being written, a ` `\n> escape was saved as the literal U+2028 character, which JavaScript treats as a line break, and\n> the regex stopped parsing. The fix was to delete those lines: `JSON.parse` already accepts\n> U+2028 inside strings. If a syntax error points at code that looks fine, check for invisible\n> characters with `grep -nP '[\\x{2028}\\x{2029}\\x{200B}]'`.\n\n> [!WARNING]\n> **Regex over HTML only works for HTML you control.** The tokenizer assumes no `>` inside\n> attribute values. That holds for highlight.js output (`\u003cspan class=\"hljs-string\">`), but not\n> for arbitrary HTML. For untrusted markup, use the DOM.\n\n## Check yourself\n\n1. Why is `\u003c` safe inside the JSON but a literal `\u003c/script>` is not, even inside a JSON string?\n   \u003cdetails>\u003csummary>Answer\u003c/summary>The HTML parser runs before any JavaScript and ends the script element at the first \u003ccode>&lt;/script\u003c/code> it sees, regardless of JSON quoting. \u003ccode>\u003c\u003c/code> contains no \u003ccode>&lt;\u003c/code> character, so the HTML parser never sees a tag. \u003ccode>JSON.parse\u003c/code> decodes it back to \u003ccode>&lt;\u003c/code> afterwards.\u003c/details>\n2. What would the page show if `build.mjs` used `template.replace('__DOCS_JSON__', json)` and a doc contained `` $` ``?\n   \u003cdetails>\u003csummary>Answer\u003c/summary>Everything in the template \u003cem>before\u003c/em> the placeholder would be inserted at that point, inside the JSON. The JSON becomes invalid, \u003ccode>JSON.parse\u003c/code> throws, and the page shows nothing.\u003c/details>\n3. In `splitLines`, why must the next line *reopen* the spans instead of just continuing?\n   \u003cdetails>\u003csummary>Answer\u003c/summary>Each line becomes its own \u003ccode>&lt;span class=\"line\"&gt;\u003c/code> element. A span opened in one line element can't legally continue into the next element, so the styling (for example, a multi-line comment's color) would be lost or the HTML would be malformed.\u003c/details>\n4. When would you switch from the data-island approach to rendering HTML at build time?\n   \u003cdetails>\u003csummary>Answer\u003c/summary>When the page must work without third-party scripts (strict CSP, offline intranets), when SEO matters (crawlers see real HTML), or when docs get large enough that client-side parsing is noticeably slow.\u003c/details>\n\n## Further reading\n\n- [MDN: `String.prototype.replace`, specifying a string as the replacement](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/String/replace#specifying_a_string_as_the_replacement)\n- [MDN: `\u003cscript>` element, embedding data in HTML](https://developer.mozilla.org/en-US/docs/Web/HTML/Element/script#embedding_data_in_html)\n- [highlight.js: API (`highlightElement`)](https://highlightjs.readthedocs.io/en/latest/api.html)\n"}]</script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/marked/12.0.2/marked.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/powershell.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/dockerfile.min.js"></script>
+<script>
+(function () {
+  const DOCS = JSON.parse(document.getElementById('docs-data').textContent);
+  const LAST_KEY = 'code-lesson:last:' + document.title;
+
+  const CALLOUTS = {
+    NOTE: ['info', 'Note'], CONCEPT: ['info', 'Concept'], TIP: ['tip', 'Tip'],
+    IMPORTANT: ['important', 'Important'], WARNING: ['warn', 'Warning'], CAUTION: ['danger', 'Caution'],
+    PATTERN: ['learn', 'Pattern'], ALGORITHM: ['learn', 'Algorithm'], 'DATA-STRUCTURE': ['learn', 'Data structure']
+  };
+
+  const store = {
+    get(k, d) { try { const v = localStorage.getItem(k); return v == null ? d : v; } catch (e) { return d; } },
+    set(k, v) { try { localStorage.setItem(k, v); } catch (e) { /* storage unavailable */ } }
+  };
+  const esc = s => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+
+  if (window.hljs) {
+    hljs.registerLanguage('hcl', function (h) {
+      return {
+        name: 'HCL', aliases: ['terraform', 'tf'],
+        keywords: {
+          keyword: 'resource data variable output locals module provider terraform include dependency inputs remote_state generate dynamic content for_each count for in if condition statement principals',
+          literal: 'true false null'
+        },
+        contains: [
+          h.HASH_COMMENT_MODE, h.C_LINE_COMMENT_MODE, h.C_BLOCK_COMMENT_MODE,
+          { className: 'string', begin: '"', end: '"', contains: [h.BACKSLASH_ESCAPE, { className: 'subst', begin: /\$\{/, end: /\}/ }] },
+          h.NUMBER_MODE,
+          { className: 'attr', begin: /\b[A-Za-z_][\w-]*(?=\s*=[^=])/ }
+        ]
+      };
+    });
+  }
+
+  // Fence info string: ```go title="path/file.go" {3,7-9}
+  if (window.marked) {
+    marked.use({
+      renderer: {
+        code(text, info) {
+          const raw = (info || '').trim();
+          const lang = (raw.match(/^[\w+#.-]+/) || [''])[0];
+          const title = (raw.match(/title="([^"]*)"/) || [])[1] || '';
+          const hl = (raw.match(/\{([\d,\s-]+)\}/) || [])[1] || '';
+          return '<pre data-title="' + esc(title) + '" data-hl="' + esc(hl) + '"><code' +
+            (lang ? ' class="language-' + esc(lang) + '"' : '') + '>' + esc(text.replace(/\n$/, '')) + '</code></pre>';
+        }
+      }
+    });
+  }
+
+  function parseRanges(spec) {
+    const set = new Set();
+    spec.split(',').forEach(part => {
+      const [a, b] = part.trim().split('-').map(n => parseInt(n, 10));
+      if (!isNaN(a)) for (let i = a; i <= (isNaN(b) ? a : b); i++) set.add(i);
+    });
+    return set;
+  }
+
+  // Split highlighted HTML into lines, closing and reopening <span>s that cross a newline.
+  function splitLines(html) {
+    const lines = [];
+    const open = [];
+    let cur = '';
+    const re = /(<span[^>]*>)|(<\/span>)|(\n)|([^<\n]+|<[^>]*>)/g;
+    let m;
+    while ((m = re.exec(html))) {
+      if (m[1]) { open.push(m[1]); cur += m[1]; }
+      else if (m[2]) { open.pop(); cur += m[2]; }
+      else if (m[3]) { lines.push(cur + '</span>'.repeat(open.length)); cur = open.join(''); }
+      else cur += m[4];
+    }
+    lines.push(cur + '</span>'.repeat(open.length));
+    return lines;
+  }
+
+  function enhanceCode(pre) {
+    const code = pre.querySelector('code');
+    const source = code.textContent;
+    const lang = ((code.className || '').match(/language-([\w+#.-]+)/) || [])[1] || '';
+    if (lang && window.hljs && hljs.getLanguage(lang)) {
+      try { hljs.highlightElement(code); } catch (e) { /* leave plain */ }
+    }
+    const hl = parseRanges(pre.dataset.hl || '');
+    code.innerHTML = splitLines(code.innerHTML)
+      .map((l, i) => '<span class="line' + (hl.has(i + 1) ? ' hl' : '') + '">' + l + '</span>')
+      .join('');
+
+    const wrap = document.createElement('div');
+    wrap.className = 'code-block';
+    const head = document.createElement('div');
+    head.className = 'code-head';
+    if (pre.dataset.title) {
+      const t = document.createElement('span');
+      t.className = 'code-title';
+      t.textContent = pre.dataset.title;
+      head.appendChild(t);
+    }
+    const l = document.createElement('span');
+    l.className = 'code-lang';
+    l.textContent = lang;
+    head.appendChild(l);
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'copy-btn';
+    btn.textContent = 'Copy';
+    btn.addEventListener('click', () => {
+      const done = label => { btn.textContent = label; setTimeout(() => { btn.textContent = 'Copy'; }, 1400); };
+      const fallback = () => {
+        const r = document.createRange();
+        r.selectNodeContents(code);
+        const s = window.getSelection();
+        s.removeAllRanges();
+        s.addRange(r);
+        done('Selected');
+      };
+      try { navigator.clipboard.writeText(source).then(() => done('Copied'), fallback); } catch (e) { fallback(); }
+    });
+    head.appendChild(btn);
+    pre.parentNode.insertBefore(wrap, pre);
+    wrap.appendChild(head);
+    wrap.appendChild(pre);
+  }
+
+  function enhanceCallout(bq) {
+    const first = bq.firstElementChild;
+    if (!first || first.tagName !== 'P') return;
+    const m = first.innerHTML.match(/^\s*\[!([A-Za-z-]+)\]\s*(<br>)?\s*/);
+    if (!m) return;
+    const kind = CALLOUTS[m[1].toUpperCase()];
+    if (!kind) return;
+    first.innerHTML = first.innerHTML.slice(m[0].length);
+    if (!first.textContent.trim() && !first.children.length) first.remove();
+    bq.classList.add('callout', kind[0]);
+    const label = document.createElement('div');
+    label.className = 'callout-label';
+    label.textContent = kind[1];
+    bq.insertBefore(label, bq.firstChild);
+  }
+
+  function slug(text, used) {
+    let s = text.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'section';
+    let out = s, i = 2;
+    while (used.has(out)) out = s + '-' + (i++);
+    used.add(out);
+    return out;
+  }
+
+  function enhance(root) {
+    root.querySelectorAll('a[href^="http"]').forEach(a => { a.target = '_blank'; a.rel = 'noopener'; });
+    root.querySelectorAll('table').forEach(t => {
+      const w = document.createElement('div');
+      w.className = 'table-wrap';
+      t.parentNode.insertBefore(w, t);
+      w.appendChild(t);
+    });
+    root.querySelectorAll('pre').forEach(enhanceCode);
+    root.querySelectorAll('blockquote').forEach(enhanceCallout);
+    const used = new Set();
+    const heads = Array.from(root.querySelectorAll('h2'));
+    heads.forEach(h => { h.id = slug(h.textContent, used); });
+    return heads;
+  }
+
+  function renderRail(activeId) {
+    const list = document.getElementById('lessons');
+    list.innerHTML = '';
+    DOCS.forEach(doc => {
+      const li = document.createElement('li');
+      const a = document.createElement('a');
+      a.href = '#' + doc.id;
+      if (doc.id === activeId) a.setAttribute('aria-current', 'page');
+      if (doc.date) {
+        const d = document.createElement('span');
+        d.className = 'lesson-date';
+        d.textContent = doc.date;
+        a.appendChild(d);
+      }
+      const t = document.createElement('span');
+      t.textContent = doc.title;
+      a.appendChild(t);
+      li.appendChild(a);
+      list.appendChild(li);
+    });
+  }
+
+  function renderToc(heads) {
+    const toc = document.getElementById('toc');
+    toc.innerHTML = '';
+    if (heads.length < 2) return;
+    const label = document.createElement('div');
+    label.className = 'rail-label';
+    label.style.paddingInline = '0';
+    label.textContent = 'On this page';
+    const ol = document.createElement('ol');
+    heads.forEach(h => {
+      const li = document.createElement('li');
+      const b = document.createElement('button');
+      b.type = 'button';
+      b.textContent = h.textContent;
+      b.addEventListener('click', () => h.scrollIntoView({ behavior: 'smooth', block: 'start' }));
+      li.appendChild(b);
+      ol.appendChild(li);
+    });
+    toc.appendChild(label);
+    toc.appendChild(ol);
+  }
+
+  function renderPager(index) {
+    const pager = document.getElementById('pager');
+    pager.innerHTML = '';
+    const make = (doc, cls, dir) => {
+      const a = document.createElement('a');
+      a.href = '#' + doc.id;
+      a.className = cls;
+      a.innerHTML = '<small></small><span></span>';
+      a.firstChild.textContent = dir;
+      a.lastChild.textContent = doc.title;
+      return a;
+    };
+    if (index > 0) pager.appendChild(make(DOCS[index - 1], 'prev', 'Previous'));
+    if (index < DOCS.length - 1) pager.appendChild(make(DOCS[index + 1], 'next', 'Next'));
+  }
+
+  function show(id, scroll) {
+    let index = DOCS.findIndex(d => d.id === id);
+    if (index < 0) index = DOCS.length - 1; // default: newest lesson
+    const doc = DOCS[index];
+    const content = document.getElementById('content');
+    if (window.marked) {
+      content.innerHTML = marked.parse(doc.md, { gfm: true });
+    } else {
+      content.textContent = doc.md; // CDN blocked: still readable as plain text
+      content.style.whiteSpace = 'pre-wrap';
+    }
+    document.getElementById('eyebrow').textContent = doc.date;
+    renderToc(enhance(content));
+    renderPager(index);
+    renderRail(doc.id);
+    store.set(LAST_KEY, doc.id);
+    if (scroll) window.scrollTo(0, 0);
+  }
+
+  function current() {
+    const h = (location.hash || '').slice(1);
+    if (h && DOCS.some(d => d.id === h)) return h;
+    return store.get(LAST_KEY, '');
+  }
+
+  window.addEventListener('hashchange', () => show(current(), true));
+  show(current(), false);
+})();
+</script>

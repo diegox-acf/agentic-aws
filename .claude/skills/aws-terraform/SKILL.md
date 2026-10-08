@@ -8,6 +8,8 @@ description: "Use when creating, editing, or reviewing Terraform modules or Terr
 ## Layout
 - Modules: infra/modules/<name>/{main.tf,variables.tf,outputs.tf,versions.tf}
 - Units:   infra/live/<env>/<project>/<unit>/terragrunt.hcl
+  Account-wide units (budget, GitHub OIDC) skip the project level:
+  infra/live/global/<unit>/terragrunt.hcl
 - Root:    infra/root.hcl generates backend.tf and provider.tf. Modules never declare
   `provider` or `backend` blocks; versions.tf only has required_providers.
 
