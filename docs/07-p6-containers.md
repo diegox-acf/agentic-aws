@@ -74,7 +74,7 @@ shape of each option. Do it after P5. It reuses P5's VPC and Spring Boot app.
    ```bash
    acct=$(aws sts get-caller-identity --query Account --output text)
    registry="$acct.dkr.ecr.us-east-1.amazonaws.com"
-   repo="$registry/learn-aws-dev-notes"
+   repo="$registry/agentic-aws-dev-notes"
    aws ecr get-login-password | docker login --username AWS --password-stdin "$registry"
    docker buildx build --platform linux/arm64 -t "$repo:$(git rev-parse --short HEAD)" --push apps/p5-notes-api
    ```
@@ -127,7 +127,7 @@ You've used ECC for six projects. Now let it consolidate:
 ```
 /ecc:instinct-status          # what has it learned about how you work?
 /ecc:evolve                   # proposes skills/agents from clustered instincts
-/ecc:skill-create             # derive a learn-aws-patterns skill from your git history
+/ecc:skill-create             # derive a agentic-aws-patterns skill from your git history
 /ecc:harness-audit            # final score vs Module 0
 ```
 

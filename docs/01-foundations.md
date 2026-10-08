@@ -135,7 +135,7 @@ on your PATH.
 ### 3a. git
 
 ```bash
-cd ~/dev/aws/learn-aws
+cd ~/dev/aws/agentic-aws
 git init -b main
 ```
 
@@ -191,7 +191,7 @@ disagree; they are your rules now. Re-copy after major ECC upgrades.
 Create `CLAUDE.md` at the repo root. Keep it short; it's loaded every session.
 
 ```markdown
-# learn-aws
+# agentic-aws
 
 Learning repo: small AWS apps provisioned with Terraform + Terragrunt.
 Tutorial lives in docs/. Current module: see docs/README.md.
@@ -236,7 +236,7 @@ name: aws-terraform
 description: "Use when creating, editing, or reviewing Terraform modules or Terragrunt units under infra/, choosing AWS resource settings, writing IAM policies, or estimating AWS cost for this repo."
 ---
 
-# AWS + Terraform conventions for learn-aws
+# AWS + Terraform conventions for agentic-aws
 
 ## Layout
 - Modules: infra/modules/<name>/{main.tf,variables.tf,outputs.tf,versions.tf}
@@ -345,7 +345,7 @@ locals {
   env_vars   = read_terragrunt_config(find_in_parent_folders("env.hcl"))
   env        = local.env_vars.locals.env
   region     = "us-east-1"
-  project    = "learn-aws"
+  project    = "agentic-aws"
   account_id = get_aws_account_id()
   # Forward slashes on every OS: Windows returns "live\global\budget", which breaks HCL strings
   # ("\g" is an invalid escape) and would give different S3 state keys than Linux/macOS/CI.
