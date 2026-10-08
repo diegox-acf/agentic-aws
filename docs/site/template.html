@@ -1,0 +1,552 @@
+<title>Learn AWS with ECC</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,700&family=Instrument+Sans:ital,wght@0,400;0,500;0,600;1,400&family=JetBrains+Mono:wght@400;600&display=swap">
+<style>
+/* Layout: field-manual reader. Fixed module rail on the left, one reading column, an "on this page" rail on wide screens. */
+:root {
+  --bg: #f4f6f3;
+  --surface: #ffffff;
+  --fg: #17211d;
+  --muted: #5a6761;
+  --line: #d9e0db;
+  --accent: #0d6b60;
+  --accent-weak: #dfeeea;
+  --signal: #8a5800;
+  --signal-weak: #faefd6;
+  --code-bg: #eaefeb;
+  --code-fg: #1d2a25;
+  --hl-key: #8b2f6b;
+  --hl-str: #0d6b60;
+  --hl-com: #7b8781;
+  --hl-num: #9a4a00;
+  --hl-title: #2a5aa6;
+  --font-display: "Bricolage Grotesque", "Segoe UI", system-ui, sans-serif;
+  --font-body: "Instrument Sans", "Segoe UI", system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, "Cascadia Mono", Consolas, monospace;
+  --step--1: 0.8125rem;
+  --step-0: 1rem;
+  --step-1: 1.1875rem;
+  --step-2: 1.5rem;
+  --step-3: 2.125rem;
+  --rail: 17rem;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0e1412; --surface: #141c19; --fg: #e3eae6; --muted: #98a69f; --line: #26322d;
+    --accent: #5fc7b6; --accent-weak: #16322d; --signal: #efc16a; --signal-weak: #2c2416;
+    --code-bg: #111916; --code-fg: #d8e2dd; --hl-key: #e391c6; --hl-str: #7fd6c6;
+    --hl-com: #6f7d77; --hl-num: #f0b36e; --hl-title: #8fb4f0;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0e1412; --surface: #141c19; --fg: #e3eae6; --muted: #98a69f; --line: #26322d;
+  --accent: #5fc7b6; --accent-weak: #16322d; --signal: #efc16a; --signal-weak: #2c2416;
+  --code-bg: #111916; --code-fg: #d8e2dd; --hl-key: #e391c6; --hl-str: #7fd6c6;
+  --hl-com: #6f7d77; --hl-num: #f0b36e; --hl-title: #8fb4f0;
+  color-scheme: dark;
+}
+
+* { box-sizing: border-box; }
+html { -webkit-text-size-adjust: 100%; }
+body {
+  background: var(--bg);
+  color: var(--fg);
+  font-family: var(--font-body);
+  font-size: var(--step-0);
+  line-height: 1.6;
+}
+a { color: var(--accent); text-underline-offset: 0.18em; }
+a:focus-visible, button:focus-visible, input:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 3px; }
+
+.shell {
+  display: grid;
+  grid-template-columns: var(--rail) minmax(0, 1fr);
+  min-height: 100vh;
+}
+
+/* ---------- module rail ---------- */
+.rail {
+  position: sticky;
+  top: env(safe-area-inset-top, 0px);
+  align-self: start;
+  height: 100vh;
+  overflow-y: auto;
+  border-right: 1px solid var(--line);
+  background: var(--surface);
+  padding-block: 1.5rem;
+  padding-inline: 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+}
+.brand { display: grid; gap: 0.25rem; padding-inline: 0.5rem; }
+.brand-name {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: var(--step-1);
+  line-height: 1.15;
+  letter-spacing: -0.01em;
+}
+.brand-sub { color: var(--muted); font-size: var(--step--1); }
+.rail-label {
+  font-size: 0.6875rem;
+  text-transform: uppercase;
+  letter-spacing: 0.09em;
+  color: var(--muted);
+  padding-inline: 0.5rem;
+}
+.modules { list-style: none; margin: 0; padding: 0; display: grid; gap: 2px; }
+.module-item { display: grid; grid-template-columns: 2.25rem minmax(0, 1fr) auto; align-items: center; border-radius: 6px; }
+.module-item:hover { background: var(--accent-weak); }
+.module-item.active { background: var(--accent-weak); }
+.module-item a {
+  grid-column: 1 / 3;
+  display: grid;
+  grid-template-columns: 2.25rem minmax(0, 1fr);
+  align-items: baseline;
+  padding: 0.45rem 0.5rem;
+  color: var(--fg);
+  text-decoration: none;
+  font-size: 0.9rem;
+  line-height: 1.3;
+}
+.module-item.active a { color: var(--accent); font-weight: 600; }
+.module-num {
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+.module-item.active .module-num { color: var(--accent); }
+.done-toggle {
+  margin-right: 0.5rem;
+  width: 1rem; height: 1rem;
+  accent-color: var(--accent);
+  cursor: pointer;
+}
+.module-item.is-done .module-label { text-decoration: line-through; text-decoration-color: var(--muted); }
+.rail-foot { margin-top: auto; color: var(--muted); font-size: var(--step--1); padding-inline: 0.5rem; display: grid; gap: 0.35rem; }
+.progress-bar { height: 4px; background: var(--line); border-radius: 2px; overflow: hidden; }
+.progress-bar > span { display: block; height: 100%; background: var(--accent); width: 0; transition: width .25s ease; }
+
+/* ---------- main ---------- */
+.main {
+  display: grid;
+  grid-template-columns: minmax(0, 46rem) minmax(0, 14rem);
+  justify-content: center;
+  gap: 3rem;
+  padding-block: 2.5rem 5rem;
+  padding-inline: 2.5rem;
+}
+.doc { min-width: 0; }
+.eyebrow {
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--accent);
+  margin-bottom: 0.5rem;
+}
+.toc { position: sticky; top: calc(env(safe-area-inset-top, 0px) + 2.5rem); align-self: start; font-size: var(--step--1); display: grid; gap: 0.5rem; }
+.toc ol { list-style: none; margin: 0; padding: 0; display: grid; gap: 0.3rem; border-left: 1px solid var(--line); }
+.toc button {
+  all: unset;
+  cursor: pointer;
+  display: block;
+  padding: 0.1rem 0 0.1rem 0.75rem;
+  margin-left: -1px;
+  border-left: 2px solid transparent;
+  color: var(--muted);
+  line-height: 1.35;
+}
+.toc button:hover { color: var(--fg); border-left-color: var(--line); }
+.toc button:focus-visible { outline: 2px solid var(--accent); }
+
+/* ---------- prose ---------- */
+.prose h1, .prose h2, .prose h3 { font-family: var(--font-display); line-height: 1.2; text-wrap: balance; letter-spacing: -0.01em; }
+.prose h1 { font-size: var(--step-3); margin: 0 0 1rem; font-weight: 700; }
+.prose h2 {
+  font-size: var(--step-2);
+  margin: 2.75rem 0 0.75rem;
+  padding-top: 1.25rem;
+  border-top: 1px solid var(--line);
+  font-weight: 600;
+  scroll-margin-top: 1.5rem;
+}
+.prose h3 { font-size: var(--step-1); margin: 2rem 0 0.5rem; font-weight: 600; scroll-margin-top: 1.5rem; }
+.prose p, .prose li { max-width: 68ch; }
+.prose p { margin: 0 0 1rem; }
+.prose ul, .prose ol { padding-left: 1.4rem; margin: 0 0 1rem; }
+.prose li { margin: 0.25rem 0; }
+.prose li > p { margin: 0 0 0.5rem; }
+.prose hr { border: 0; height: 0; margin: 2rem 0 0; }
+.prose strong { font-weight: 600; }
+.prose blockquote {
+  margin: 1.25rem 0;
+  padding: 0.75rem 1rem;
+  background: var(--signal-weak);
+  border-radius: 6px;
+  color: var(--fg);
+}
+.prose blockquote p:last-child { margin-bottom: 0; }
+.prose :not(pre) > code {
+  font-family: var(--font-mono);
+  font-size: 0.86em;
+  background: var(--code-bg);
+  color: var(--code-fg);
+  padding: 0.1em 0.35em;
+  border-radius: 4px;
+  overflow-wrap: anywhere;
+}
+.code-block { position: relative; margin: 1rem 0 1.25rem; }
+.code-block pre {
+  margin: 0;
+  overflow-x: auto;
+  background: var(--code-bg);
+  color: var(--code-fg);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 1rem 1.1rem;
+  font-family: var(--font-mono);
+  font-size: 0.8125rem;
+  line-height: 1.55;
+  tab-size: 2;
+}
+.code-block pre code { font-family: inherit; background: none; padding: 0; }
+.code-lang {
+  position: absolute; top: 0.45rem; right: 4.6rem;
+  font-family: var(--font-mono); font-size: 0.6875rem; color: var(--muted);
+  text-transform: lowercase; pointer-events: none;
+}
+.copy-btn {
+  position: absolute; top: 0.35rem; right: 0.4rem;
+  font: 600 0.6875rem var(--font-body);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--muted);
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 5px;
+  padding: 0.25rem 0.55rem;
+  cursor: pointer;
+}
+.copy-btn:hover { color: var(--accent); border-color: var(--accent); }
+.table-wrap { overflow-x: auto; margin: 1rem 0 1.5rem; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); }
+.prose table { border-collapse: collapse; width: 100%; font-size: 0.875rem; font-variant-numeric: tabular-nums; }
+.prose th, .prose td { text-align: left; vertical-align: top; padding: 0.55rem 0.8rem; border-bottom: 1px solid var(--line); }
+.prose th { font-weight: 600; font-size: 0.75rem; letter-spacing: 0.05em; text-transform: uppercase; color: var(--muted); background: var(--bg); }
+.prose tr:last-child td { border-bottom: 0; }
+.prose td code { white-space: nowrap; }
+
+/* cost sections get the signal colour so they stand out when skimming */
+.prose h2.is-cost { color: var(--signal); }
+
+.pager { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 1rem; margin-top: 3.5rem; padding-top: 1.5rem; border-top: 1px solid var(--line); }
+.pager a {
+  display: grid; gap: 0.15rem;
+  text-decoration: none;
+  padding: 0.75rem 1rem;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface);
+  min-width: 0;
+  max-width: 100%;
+}
+.pager a:hover { border-color: var(--accent); }
+.pager small { color: var(--muted); font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.06em; }
+.pager span { color: var(--fg); font-weight: 600; }
+.pager .next { margin-left: auto; text-align: right; }
+
+/* syntax colours (highlight.js classes) */
+.hljs-keyword, .hljs-selector-tag, .hljs-built_in, .hljs-meta .hljs-keyword { color: var(--hl-key); }
+.hljs-string, .hljs-regexp, .hljs-template-string, .hljs-subst { color: var(--hl-str); }
+.hljs-comment, .hljs-quote, .hljs-meta { color: var(--hl-com); font-style: italic; }
+.hljs-number, .hljs-literal, .hljs-symbol { color: var(--hl-num); }
+.hljs-title, .hljs-function .hljs-title, .hljs-section, .hljs-type, .hljs-attr, .hljs-attribute, .hljs-name, .hljs-variable { color: var(--hl-title); }
+
+/* ---------- responsive ---------- */
+@media (max-width: 1180px) {
+  .main { grid-template-columns: minmax(0, 46rem); }
+  .toc { display: none; }
+}
+@media (max-width: 860px) {
+  .shell { grid-template-columns: minmax(0, 1fr); }
+  .rail {
+    position: static;
+    height: auto;
+    border-right: 0;
+    border-bottom: 1px solid var(--line);
+    padding-inline: 16px;
+    gap: 0.75rem;
+  }
+  .modules { grid-template-columns: repeat(auto-fill, minmax(min(100%, 15rem), 1fr)); }
+  .rail-foot { margin-top: 0; }
+  .main { padding-inline: 16px; padding-block: 1.75rem 4rem; }
+  .prose h1 { font-size: 1.75rem; }
+}
+@media (prefers-reduced-motion: reduce) {
+  * { transition: none !important; scroll-behavior: auto !important; }
+}
+</style>
+
+<div class="shell">
+  <nav class="rail" aria-label="Modules">
+    <div class="brand">
+      <span class="brand-name">Learn AWS with ECC</span>
+      <span class="brand-sub">Terraform + Terragrunt · Claude Code + ECC 2.2.3</span>
+    </div>
+    <div class="rail-label">Path</div>
+    <ol class="modules" id="modules"></ol>
+    <div class="rail-foot">
+      <div class="progress-bar" aria-hidden="true"><span id="progress-fill"></span></div>
+      <span id="progress-text">0 of 0 modules done</span>
+    </div>
+  </nav>
+
+  <main class="main">
+    <article class="doc">
+      <div class="eyebrow" id="eyebrow"></div>
+      <div class="prose" id="content"><p>Loading the tutorial…</p></div>
+      <nav class="pager" id="pager" aria-label="Previous and next module"></nav>
+    </article>
+    <aside class="toc" id="toc" aria-label="On this page"></aside>
+  </main>
+</div>
+
+<script type="application/json" id="docs-data">__DOCS_JSON__</script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/marked/12.0.2/marked.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/powershell.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/dockerfile.min.js"></script>
+<script>
+(function () {
+  const DOCS = JSON.parse(document.getElementById('docs-data').textContent);
+  const DONE_KEY = 'learn-aws-ecc:done';
+  const LAST_KEY = 'learn-aws-ecc:last';
+
+  const store = {
+    get(key, fallback) { try { const v = localStorage.getItem(key); return v == null ? fallback : JSON.parse(v); } catch (e) { return fallback; } },
+    set(key, value) { try { localStorage.setItem(key, JSON.stringify(value)); } catch (e) { /* storage unavailable: keep in memory only */ } }
+  };
+  let done = new Set(store.get(DONE_KEY, []));
+
+  if (window.hljs) {
+    hljs.registerLanguage('hcl', function (h) {
+      return {
+        name: 'HCL',
+        aliases: ['terraform', 'tf'],
+        keywords: {
+          keyword: 'resource data variable output locals module provider terraform include dependency inputs remote_state generate dynamic content for_each count for in if condition statement principals',
+          literal: 'true false null'
+        },
+        contains: [
+          h.HASH_COMMENT_MODE,
+          h.C_LINE_COMMENT_MODE,
+          h.C_BLOCK_COMMENT_MODE,
+          { className: 'string', begin: '"', end: '"', contains: [h.BACKSLASH_ESCAPE, { className: 'subst', begin: /\$\{/, end: /\}/ }] },
+          h.NUMBER_MODE,
+          { className: 'attr', begin: /\b[A-Za-z_][\w-]*(?=\s*=[^=])/ }
+        ]
+      };
+    });
+  }
+
+  function shortLabel(doc) {
+    if (doc.id === 'start') return 'Start here';
+    return doc.title.replace(/^Module\s+\d+\s*·\s*/, '').replace(/^P\d\s*·\s*/, '');
+  }
+  function numLabel(doc) {
+    if (doc.id === 'start') return '··';
+    if (doc.id === 'm99') return 'ref';
+    return doc.id.slice(1);
+  }
+  function eyebrow(doc) {
+    if (doc.id === 'start') return 'Overview';
+    if (doc.id === 'm99') return 'Reference';
+    const m = doc.title.match(/^Module\s+(\d+)\s*·\s*(P\d)?/);
+    return m ? ('Module ' + m[1] + (m[2] ? ' · Project ' + m[2].slice(1) : '')) : '';
+  }
+  const trackable = DOCS.filter(d => d.id !== 'start' && d.id !== 'm99');
+
+  function renderRail(activeId) {
+    const list = document.getElementById('modules');
+    list.innerHTML = '';
+    DOCS.forEach(doc => {
+      const li = document.createElement('li');
+      li.className = 'module-item' + (doc.id === activeId ? ' active' : '') + (done.has(doc.id) ? ' is-done' : '');
+      const a = document.createElement('a');
+      a.href = '#' + doc.id;
+      if (doc.id === activeId) a.setAttribute('aria-current', 'page');
+      a.innerHTML = '<span class="module-num"></span><span class="module-label"></span>';
+      a.firstChild.textContent = numLabel(doc);
+      a.lastChild.textContent = shortLabel(doc);
+      li.appendChild(a);
+      if (trackable.includes(doc)) {
+        const cb = document.createElement('input');
+        cb.type = 'checkbox';
+        cb.className = 'done-toggle';
+        cb.id = 'done-' + doc.id;
+        cb.checked = done.has(doc.id);
+        cb.setAttribute('aria-label', 'Mark "' + shortLabel(doc) + '" as done');
+        cb.addEventListener('change', () => {
+          if (cb.checked) done.add(doc.id); else done.delete(doc.id);
+          store.set(DONE_KEY, Array.from(done));
+          li.classList.toggle('is-done', cb.checked);
+          renderProgress();
+        });
+        li.appendChild(cb);
+      }
+      list.appendChild(li);
+    });
+    renderProgress();
+  }
+
+  function renderProgress() {
+    const n = trackable.filter(d => done.has(d.id)).length;
+    document.getElementById('progress-fill').style.width = (trackable.length ? (100 * n / trackable.length) : 0) + '%';
+    document.getElementById('progress-text').textContent = n + ' of ' + trackable.length + ' modules done';
+  }
+
+  function slug(text, used) {
+    let s = text.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'section';
+    let out = s, i = 2;
+    while (used.has(out)) out = s + '-' + (i++);
+    used.add(out);
+    return out;
+  }
+
+  function enhance(root) {
+    // internal .md links -> in-page module routes; external links open in a new tab
+    root.querySelectorAll('a[href]').forEach(a => {
+      const href = a.getAttribute('href');
+      const m = href.match(/^(\d\d)-[\w-]+\.md(?:#.*)?$/);
+      if (m) { a.setAttribute('href', '#m' + m[1]); return; }
+      if (/^README\.md/.test(href)) { a.setAttribute('href', '#start'); return; }
+      if (/^https?:/.test(href)) { a.target = '_blank'; a.rel = 'noopener'; }
+    });
+    // tables scroll inside their own box
+    root.querySelectorAll('table').forEach(t => {
+      const wrap = document.createElement('div');
+      wrap.className = 'table-wrap';
+      t.parentNode.insertBefore(wrap, t);
+      wrap.appendChild(t);
+    });
+    // code blocks: highlight, language tag, copy button
+    root.querySelectorAll('pre > code').forEach(code => {
+      const pre = code.parentNode;
+      const wrap = document.createElement('div');
+      wrap.className = 'code-block';
+      pre.parentNode.insertBefore(wrap, pre);
+      wrap.appendChild(pre);
+      const langMatch = (code.className || '').match(/language-([\w-]+)/);
+      const lang = langMatch ? langMatch[1] : '';
+      if (lang && window.hljs && hljs.getLanguage(lang)) {
+        try { hljs.highlightElement(code); } catch (e) { /* leave unhighlighted */ }
+      }
+      if (lang) {
+        const tag = document.createElement('span');
+        tag.className = 'code-lang';
+        tag.textContent = lang;
+        wrap.appendChild(tag);
+      }
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'copy-btn';
+      btn.textContent = 'Copy';
+      btn.addEventListener('click', () => {
+        const text = code.innerText;
+        const ok = () => { btn.textContent = 'Copied'; setTimeout(() => { btn.textContent = 'Copy'; }, 1400); };
+        const fallback = () => {
+          const range = document.createRange();
+          range.selectNodeContents(code);
+          const sel = window.getSelection();
+          sel.removeAllRanges();
+          sel.addRange(range);
+          btn.textContent = 'Selected';
+          setTimeout(() => { btn.textContent = 'Copy'; }, 1400);
+        };
+        try {
+          navigator.clipboard.writeText(text).then(ok, fallback);
+        } catch (e) { fallback(); }
+      });
+      wrap.appendChild(btn);
+    });
+    // headings: ids for the TOC; flag cost sections
+    const used = new Set();
+    const heads = Array.from(root.querySelectorAll('h2'));
+    heads.forEach(h => {
+      h.id = slug(h.textContent, used);
+      if (/^cost\b/i.test(h.textContent.trim())) h.classList.add('is-cost');
+    });
+    return heads;
+  }
+
+  function renderToc(heads) {
+    const toc = document.getElementById('toc');
+    toc.innerHTML = '';
+    if (heads.length < 2) return;
+    const label = document.createElement('div');
+    label.className = 'rail-label';
+    label.style.paddingInline = '0';
+    label.textContent = 'On this page';
+    const ol = document.createElement('ol');
+    heads.forEach(h => {
+      const li = document.createElement('li');
+      const b = document.createElement('button');
+      b.type = 'button';
+      b.textContent = h.textContent;
+      b.addEventListener('click', () => h.scrollIntoView({ behavior: 'smooth', block: 'start' }));
+      li.appendChild(b);
+      ol.appendChild(li);
+    });
+    toc.appendChild(label);
+    toc.appendChild(ol);
+  }
+
+  function renderPager(index) {
+    const pager = document.getElementById('pager');
+    pager.innerHTML = '';
+    const make = (doc, cls, dir) => {
+      const a = document.createElement('a');
+      a.href = '#' + doc.id;
+      a.className = cls;
+      a.innerHTML = '<small></small><span></span>';
+      a.firstChild.textContent = dir;
+      a.lastChild.textContent = shortLabel(doc);
+      return a;
+    };
+    if (index > 0) pager.appendChild(make(DOCS[index - 1], 'prev', 'Previous'));
+    if (index < DOCS.length - 1) pager.appendChild(make(DOCS[index + 1], 'next', 'Next'));
+  }
+
+  function show(id, scroll) {
+    let index = DOCS.findIndex(d => d.id === id);
+    if (index < 0) index = 0;
+    const doc = DOCS[index];
+    const content = document.getElementById('content');
+    if (window.marked) {
+      content.innerHTML = marked.parse(doc.md, { gfm: true });
+    } else {
+      content.textContent = doc.md; // CDN blocked: still readable as plain text
+      content.style.whiteSpace = 'pre-wrap';
+    }
+    document.getElementById('eyebrow').textContent = eyebrow(doc);
+    renderToc(enhance(content));
+    renderPager(index);
+    renderRail(doc.id);
+    store.set(LAST_KEY, doc.id);
+    if (scroll) window.scrollTo(0, 0);
+  }
+
+  function current() {
+    const h = (location.hash || '').slice(1);
+    if (h && DOCS.some(d => d.id === h)) return h;
+    return store.get(LAST_KEY, 'start');
+  }
+
+  window.addEventListener('hashchange', () => show(current(), true));
+  show(current(), false);
+})();
+</script>

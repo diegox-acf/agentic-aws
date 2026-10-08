@@ -1,0 +1,24 @@
+{
+  "permissions": {
+    "deny": [
+      "Bash(*terragrunt apply*)",
+      "Bash(*terragrunt * apply*)",
+      "Bash(*terragrunt destroy*)",
+      "Bash(*terragrunt * destroy*)",
+      "Bash(*terraform apply*)",
+      "Bash(*terraform * apply*)",
+      "Bash(*terraform destroy*)",
+      "Bash(*terraform * destroy*)",
+      "Bash(*aws * delete-*)",
+      "PowerShell(*terragrunt apply*)",
+      "PowerShell(*terragrunt * apply*)",
+      "PowerShell(*terragrunt destroy*)",
+      "PowerShell(*terragrunt * destroy*)",
+      "PowerShell(*terraform apply*)",
+      "PowerShell(*terraform * apply*)",
+      "PowerShell(*terraform destroy*)",
+      "PowerShell(*terraform * destroy*)",
+      "PowerShell(*aws * delete-*)"
+    ]
+  }
+}

@@ -1,0 +1,28 @@
+# Terraform / Terragrunt
+.terraform/
+.terragrunt-cache/
+*.tfstate
+*.tfstate.*
+crash.log
+*.tfplan
+.terraform.lock.hcl.bak
+
+# Build output
+dist/
+build/
+bin/
+*.zip
+node_modules/
+target/
+.gradle/
+.next/
+out/
+
+# Secrets
+.env
+.env.*
+!.env.example
+
+# Claude Code local config (hookify rules, local settings)
+.claude/*.local.md
+.claude/settings.local.json
