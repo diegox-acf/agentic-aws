@@ -74,7 +74,7 @@ You build this up gradually. After Module 1 you have `CLAUDE.md`, `.claude/`, `i
 and the `global/budget` unit; `apps/` and the `dev/` project units arrive with each project.
 
 ```
-learn-aws/
+agentic-aws/
 ├── CLAUDE.md                     # project instructions for Claude (Module 1)
 ├── .claude/
 │   ├── rules/ecc/                # ECC rule packs copied in (Module 1)

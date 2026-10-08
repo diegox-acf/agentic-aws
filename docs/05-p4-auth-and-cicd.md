@@ -91,8 +91,8 @@ no stored keys). Both are really IAM and trust-policy lessons.
 
 ```
  GitHub Actions job ── requests OIDC token (aud: sts.amazonaws.com,
-       │                sub: repo:<you>/learn-aws:pull_request  or
-       │                     repo:<you>/learn-aws:environment:dev)
+       │                sub: repo:<you>/agentic-aws:pull_request  or
+       │                     repo:<you>/agentic-aws:environment:dev)
        ▼
  AWS STS AssumeRoleWithWebIdentity
        │ trust policy checks iss, aud, sub

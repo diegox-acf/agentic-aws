@@ -1,4 +1,4 @@
-# learn-aws
+# agentic-aws
 
 Learning repo: small AWS apps provisioned with Terraform + Terragrunt.
 Tutorial lives in docs/. Current module: see docs/README.md.

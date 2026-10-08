@@ -123,7 +123,7 @@ Apply it, then play with the table **by hand** before writing any Go. This is wh
 DynamoDB starts to make sense:
 
 ```bash
-t=learn-aws-dev-links
+t=agentic-aws-dev-links
 aws dynamodb put-item --table-name "$t" \
   --item '{"code":{"S":"abc1234"},"url":{"S":"https://aws.amazon.com"},"clicks":{"N":"0"}}'
 # conditional write: run it twice, the second fails with ConditionalCheckFailedException
@@ -300,7 +300,7 @@ Fix findings, then add each lesson to `.claude/skills/aws-terraform/SKILL.md`.
 
 1. Log JSON with `log/slog` (`slog.NewJSONHandler(os.Stdout, nil)`): include `code`,
    `route`, `status`, `latency_ms`, the request ID.
-2. CloudWatch → Logs Insights on `/aws/lambda/learn-aws-dev-shortener`:
+2. CloudWatch → Logs Insights on `/aws/lambda/agentic-aws-dev-shortener`:
 
    ```
    fields @timestamp, route, status, latency_ms

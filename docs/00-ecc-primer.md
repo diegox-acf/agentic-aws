@@ -249,7 +249,7 @@ ECC is tuned to produce working code fast. When learning, slow it down on purpos
 
 ## 7. Your first 20 minutes with ECC
 
-Do these now, inside `learn-aws`:
+Do these now, inside `agentic-aws`:
 
 1. `claude` → `/ecc:ecc-guide` → ask: "Which ECC skills and agents are relevant for AWS + Terraform work?" The answer will be mostly generic (backend, deployment, docker, security). ECC has **no Terraform/AWS-specific skill**. You'll write one in Module 1.
 2. `/ecc:aside "explain the difference between an ECC skill, agent, hook, and rule in two lines each"`. Compare with the table above.

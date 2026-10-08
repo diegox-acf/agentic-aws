@@ -3,7 +3,7 @@ name: aws-terraform
 description: "Use when creating, editing, or reviewing Terraform modules or Terragrunt units under infra/, choosing AWS resource settings, writing IAM policies, or estimating AWS cost for this repo."
 ---
 
-# AWS + Terraform conventions for learn-aws
+# AWS + Terraform conventions for agentic-aws
 
 ## Layout
 - Modules: infra/modules/<name>/{main.tf,variables.tf,outputs.tf,versions.tf}
