@@ -1,0 +1,3 @@
+# LF in the working tree on every OS. With core.autocrlf=true (Git for Windows default),
+# files were checked out as CRLF, which breaks bash scripts ("pipefail\r") and gofmt.
+* text=auto eol=lf
