@@ -1,4 +1,7 @@
 {
+  "env": {
+    "GATEGUARD_EXEMPT_GLOBS": "apps/**,docs/**"
+  },
   "permissions": {
     "deny": [
       "Bash(*terragrunt apply*)",
