@@ -47,15 +47,21 @@ Idle cost is zero, so you can leave P1 deployed for P2 and P4.
 ```
 apps/p1-shortener/
 ├── go.mod
-├── cmd/lambda/main.go             # wiring only: build deps, lambda.Start(handler)
-├── internal/links/                # domain: code generation, URL validation, service
-│   ├── service.go
-│   └── service_test.go
-├── internal/httpapi/              # API Gateway v2 event <-> service
-│   ├── handler.go
-│   └── handler_test.go
-├── internal/store/dynamo.go       # implements links.Store with aws-sdk-go-v2
-└── build.sh
+├── cmd/lambda/main.go             # wiring only: deps -> router, lambda.Start(httpadapter.NewV2(router))
+├── cmd/local/main.go              # same wiring on :8080, for curl against the real table
+├── internal/links/                # domain (the port): Link, Store interface, codes, URL validation, Service
+│   ├── link.go  code.go  service.go
+│   └── *_test.go                  # incl. fake_store_test.go, the in-memory Store
+├── internal/httpapi/              # chi router: HTTP <-> links.Service (plain net/http handlers)
+│   ├── router.go
+│   ├── router_test.go             # httptest, no AWS
+│   └── lambda_bridge_test.go      # API Gateway v2 events through httpadapter
+├── internal/store/                # DynamoDB adapter implementing links.Store
+│   ├── dynamo.go
+│   ├── dynamo_test.go             # fake client, asserts the requests sent
+│   └── dynamo_integration_test.go # real table, only when P1_TABLE is set
+├── build.sh
+└── smoke.sh                       # end-to-end check against the deployed API
 infra/modules/
 ├── dynamodb-table/
 ├── lambda-function/               # reused in P3
@@ -139,28 +145,95 @@ aws dynamodb update-item --table-name "$t" --key '{"code":{"S":"abc1234"}}' \
 
 ## M3 · Go code, test-first
 
+### Decide the libraries first
+
+Before any Go, settle the stack and record it:
+`use ecc:architecture-decision-records to write docs/adr/0002-...`. This repo chose
+([ADR-0002](adr/0002-p1-go-libraries-and-structure.md)):
+
+- **One Lambda** for all routes, ports-and-adapters layout (`links` / `httpapi` / `store` / `cmd`).
+- **chi** router with plain `net/http` handlers, bridged to Lambda by
+  **`aws-lambda-go-api-proxy/httpadapter.NewV2`**. Handlers then run under `httptest` and
+  `go run ./cmd/local`, not only inside Lambda.
+- **Explicit API Gateway routes** (no `$default`), so unknown paths 404 without invoking Lambda.
+- **aws-sdk-go-v2** with `attributevalue` and the **`expression` builder**.
+- Standard `testing` + `go-cmp`.
+
+The alternative is a handler that switches on `routeKey` over raw
+`events.APIGatewayV2HTTPRequest`: zero dependencies, but every test builds event structs and
+nothing runs outside Lambda. The ADR lists why it lost.
+
+### Domain and HTTP adapter
+
 ```
-/ecc:go-test implement internal/links: Service with Create(ctx, rawURL) and Resolve(ctx, code),
-behind a Store interface. Table-driven tests first with an in-memory fake store. Cases:
-valid https URL, ftp URL rejected, javascript: URL rejected, >2048 chars rejected,
-collision on first two attempts then success, unknown code -> ErrNotFound.
+/ecc:go-test implement internal/links: Service with Create(ctx, rawURL), Resolve(ctx, code)
+and Stats(ctx, code), behind a Store interface. Table-driven tests first with an in-memory
+fake store. Cases: valid https URL, ftp URL rejected, javascript: URL rejected, >2048 chars
+rejected, collision on first two attempts then success, unknown code -> ErrNotFound,
+expired link -> ErrNotFound.
 ```
 
 Watch the red → green cycle. Then the HTTP adapter:
 
 ```
-/ecc:go-test implement internal/httpapi: a handler for events.APIGatewayV2HTTPRequest
-that routes POST /links, GET /{code}, GET /links/{code} to links.Service. Test each route,
-bad JSON -> 400, ErrNotFound -> 404, unexpected error -> 500 with no internal details in the body.
+/ecc:go-test implement internal/httpapi per ADR-0002: a chi router (plain net/http handlers)
+for POST /links, GET /{code}, GET /links/{code} on top of a LinkService interface. Test with
+httptest: each route, bad JSON -> 400, body over 8 KiB -> 400, ErrNotFound -> 404, unexpected
+error -> 500 with no internal details in the body (logged instead). Add a test that drives the
+router through httpadapter.NewV2 with API Gateway v2 events, including a base64 body.
 ```
 
-Write `internal/store/dynamo.go` **yourself** (aws-sdk-go-v2 `dynamodb` +
-`feature/dynamodb/attributevalue`). It is the part that teaches you the API: `PutItem`
-with `ConditionExpression`, `GetItem`, `UpdateItem` with `ADD`, mapping
+Two details worth noticing in the result: the redirect sends `Cache-Control: no-store`
+(browsers cache 301s forever and would skip your click counter), and `shortUrl` is built from
+the request host, which the adapter sets to the API Gateway domain.
+
+### DynamoDB adapter (you write it)
+
+Write `internal/store/dynamo.go` **yourself** (aws-sdk-go-v2 `dynamodb`,
+`feature/dynamodb/attributevalue`, `feature/dynamodb/expression`). It is the part that teaches
+you the API: `PutItem` with `ConditionExpression`, `GetItem`, `UpdateItem` with `ADD`, mapping
 `*types.ConditionalCheckFailedException` to a domain error with `errors.As`.
+
+Then review it against this checklist. Each item is a bug that compiles fine and fails only
+against the real table:
+
+| Check | Why |
+|---|---|
+| `var _ links.Store = (*Dynamo)(nil)` | Nothing else checks the interface until `cmd/lambda` |
+| Struct tag is `dynamodbav`, on a private `item` struct in `store` | A misspelled tag is silently ignored (attributes get Go field names, so `PutItem` misses the `code` key); tags on `links.Link` would leak storage names into the domain |
+| `expiresAt` is a **Number** of epoch seconds (`dynamodbav:"expiresAt,unixtime"`) | TTL silently skips items whose attribute is missing, misnamed, or a String |
+| `PutItem` has `attribute_not_exists(code)` | `PutItem` is an upsert: a collision overwrites someone's link |
+| `UpdateItem` has `attribute_exists(code) AND expiresAt > :now` | `UpdateItem` is an upsert too, and the TTL sweep is eventual (expired items stay readable for a while) |
+| `ReturnValues: ALL_NEW` | `UPDATED_NEW` returns only `clicks`, so the redirect has no URL |
+| Only a failed condition maps to `ErrNotFound` / `ErrCodeTaken`; everything else is wrapped with `%w` | Otherwise a DynamoDB outage looks like a 404 |
+| `GetItem` with `ConsistentRead` | Default reads are eventually consistent: stats right after create could 404 |
+
+Make `NewDynamo` accept a small interface with the three methods you use
+(`*dynamodb.Client` satisfies it) so unit tests can pass a fake and assert the requests. Add
+an integration test that skips unless `P1_TABLE` is set, and run it against the real table:
+
+```bash
+cd apps/p1-shortener
+P1_TABLE=agentic-aws-dev-links AWS_PROFILE=learn-admin go test -count=1 -run Integration -v ./internal/store/
+```
+
+Give test items an `expiresAt` within the hour and let TTL delete them, instead of deleting.
 
 Useful skills to pull in by name: `ecc:golang-patterns`, `ecc:golang-testing`,
 `ecc:hexagonal-architecture` (the Store interface is a port, Dynamo is an adapter).
+
+### Wiring and build
+
+`cmd/lambda/main.go` and `cmd/local/main.go` contain wiring only: read `TABLE_NAME` (fail fast
+if it is empty), load the AWS config, then `dynamodb.Client` → `store.NewDynamo` →
+`links.NewService(store, time.Now, links.NewCode)` → `httpapi.NewRouter`. Lambda hands the
+router to `lambda.Start(httpadapter.NewV2(router).ProxyWithContext)`; local runs
+`http.ListenAndServe(":8080", router)`, so you can curl the whole API before any Lambda exists:
+
+```bash
+cd apps/p1-shortener
+TABLE_NAME=agentic-aws-dev-links AWS_PROFILE=learn-admin go run ./cmd/local
+```
 
 `build.sh`:
 
@@ -256,21 +329,28 @@ inputs = {
 }
 ```
 
-Deploy and test:
+Deploy. Claude runs `plan` and summarises it; **you** run `apply` (project `CLAUDE.md` rule):
 
 ```bash
 apps/p1-shortener/build.sh
 cd infra/live/dev/p1-shortener
-terragrunt run --all plan
-terragrunt run --all apply
-api=$(cd api && terragrunt output -raw api_endpoint)   # output from the http-api module
-code=$(curl -s -X POST "$api/links" -H "content-type: application/json" \
-  -d '{"url":"https://aws.amazon.com/lambda/"}' | jq -r .code)
-curl -s -i "$api/$code"          # expect 301 + Location header
-curl -s "$api/links/$code" | jq  # clicks should be 1
+terragrunt run --all plan    # read it: only creates, nothing hourly-billed
+terragrunt run --all apply   # you, not Claude
 ```
 
 Note how `run --all` applies `table → fn → api` in dependency order.
+
+Then `apps/p1-shortener/smoke.sh` checks it end to end: create a link, expect `301` with the
+right `Location`, then expect `clicks` = 1 from the stats route. The core of it (JSON parsed
+with `node`, since `jq` isn't installed here):
+
+```bash
+api=$(cd infra/live/dev/p1-shortener/api && terragrunt output -raw api_endpoint)
+code=$(curl -s -X POST "$api/links" -H "content-type: application/json" \
+  -d '{"url":"https://aws.amazon.com/lambda/"}' | node -pe 'JSON.parse(require("fs").readFileSync(0)).code')
+curl -s -i "$api/$code"      # expect 301 + Location header
+curl -s "$api/links/$code"   # clicks should be 1
+```
 
 ## M5 · Review
 
@@ -298,8 +378,10 @@ Fix findings, then add each lesson to `.claude/skills/aws-terraform/SKILL.md`.
 
 ## M6 · Observability
 
-1. Log JSON with `log/slog` (`slog.NewJSONHandler(os.Stdout, nil)`): include `code`,
-   `route`, `status`, `latency_ms`, the request ID.
+1. Log JSON with `log/slog`. `httpapi.NewRouter` already takes a `*slog.Logger` (it logs the
+   real error behind every 500); in `cmd/lambda` pass
+   `slog.New(slog.NewJSONHandler(os.Stdout, nil))`, and add a chi middleware that logs `code`,
+   `route`, `status`, `latency_ms` and the request ID for every request.
 2. CloudWatch → Logs Insights on `/aws/lambda/agentic-aws-dev-shortener`:
 
    ```
@@ -346,5 +428,6 @@ Keep P1 running; it costs ~$0 idle and P2/P4 build on it. To remove it:
 
 ```bash
 cd infra/live/dev/p1-shortener
-terragrunt run --all destroy
+terragrunt run --all -- plan -destroy   # Claude can run this and summarise it
+terragrunt run --all destroy           # you run this
 ```
