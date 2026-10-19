@@ -80,22 +80,16 @@ resource "aws_lambda_function" "this" {
   depends_on = [aws_cloudwatch_log_group.this, aws_iam_role_policy.this]
 }
 
-# 6. Alarms (only when alarm_email is set): email on failed invocations and on app errors.
+# 6. Alarms: on failed invocations and on app errors, published to an SNS topic.
 locals {
-  alarms = var.alarm_email == null ? 0 : 1
+  alarms = var.alarms_enabled ? 1 : 0
 }
 
+# Email subscriptions are added outside Terraform (aws sns subscribe), so no plan or destroy
+# ever needs a personal address, and it never lands in state. Deleting the topic removes them.
 resource "aws_sns_topic" "alarms" {
   count = local.alarms
   name  = "${local.function_name}-alarms"
-}
-
-# Stays "pending confirmation" until the recipient clicks the link AWS emails them.
-resource "aws_sns_topic_subscription" "email" {
-  count     = local.alarms
-  topic_arn = aws_sns_topic.alarms[0].arn
-  protocol  = "email"
-  endpoint  = var.alarm_email
 }
 
 # AWS/Lambda Errors counts FAILED invocations: crashes, timeouts, init failures. A handled

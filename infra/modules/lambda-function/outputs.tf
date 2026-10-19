@@ -20,7 +20,7 @@ output "role_arn" {
 
 output "alarm_topic_arn" {
   value       = one(aws_sns_topic.alarms[*].arn)
-  description = "SNS topic the alarms notify; null when alarm_email is not set."
+  description = "SNS topic the alarms notify (subscribe an email to it); null when alarms are disabled."
 }
 
 output "log_group_name" {
