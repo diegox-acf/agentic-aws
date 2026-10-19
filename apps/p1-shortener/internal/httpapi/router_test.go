@@ -136,6 +136,18 @@ func TestCreateLink(t *testing.T) {
 			name:       "body over 8 KiB",
 			target:     "http://short.test/links",
 			body:       `{"url":"https://example.com/` + strings.Repeat("a", 9*1024) + `"}`,
+			wantStatus: http.StatusRequestEntityTooLarge,
+		},
+		{
+			name:       "trailing data after the object",
+			target:     "http://short.test/links",
+			body:       `{"url":"https://example.com"} {"url":"https://evil.example"}`,
+			wantStatus: http.StatusBadRequest,
+		},
+		{
+			name:       "junk after the object",
+			target:     "http://short.test/links",
+			body:       `{"url":"https://example.com"}}`,
 			wantStatus: http.StatusBadRequest,
 		},
 		{

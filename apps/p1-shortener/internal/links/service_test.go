@@ -57,6 +57,10 @@ func TestServiceCreate_ValidatesURL(t *testing.T) {
 		{"opaque, no host", "https:example.com", ErrInvalidURL},
 		{"no scheme", "example.com/path", ErrInvalidURL},
 		{"unparseable", "https://exa mple.com/%zz", ErrInvalidURL},
+		// "https://good.com@evil.com" goes to evil.com: the part before @ is a username.
+		{"userinfo disguises the host", "https://good.com@evil.com/", ErrInvalidURL},
+		{"user and password", "https://user:pass@example.com/", ErrInvalidURL},
+		{"port but no hostname", "http://:80/", ErrInvalidURL},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
