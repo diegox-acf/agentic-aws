@@ -54,7 +54,12 @@ description: "Use when creating, editing, or reviewing Terraform modules or Terr
   app handles and answers with a 500 is a successful invocation: alarm on it with a log
   metric filter (`{ $.level = "ERROR" }` for slog JSON). Verify patterns with
   `aws logs test-metric-filter` before applying. Use `treat_missing_data = "notBreaching"`.
-- Emails (alarms, budgets) come from env vars via `get_env`, never committed.
+- Never make a unit that must be destroyed depend on a required personal env var
+  (`get_env("X")` with no default): every command fails without it, `destroy` included, and
+  `run --all destroy` stops halfway. HCL evaluates both branches of `?:`, so you can't
+  special-case destroy. Subscribe alarm emails outside Terraform (`aws sns subscribe`); the
+  topic's deletion removes them. Verify teardown with `run --all -- plan -destroy` in a
+  shell without your personal env vars.
 - This account's Lambda concurrency limit is 10, so `reserved_concurrent_executions` is
   unavailable (AWS keeps 10 unreserved). Cap abuse at the API instead; check with
   `aws lambda get-account-settings` before proposing it.

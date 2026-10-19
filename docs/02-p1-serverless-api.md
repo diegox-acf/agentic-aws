@@ -390,17 +390,26 @@ Fix findings, then add each lesson to `.claude/skills/aws-terraform/SKILL.md`.
    | stats count() by route, status
    ```
 
-3. Add to the `lambda-function` module, created only when an `alarm_email` input is set: an
-   SNS topic + email subscription, and two `Sum > 0` over 5 minutes alarms:
+3. Add to the `lambda-function` module (toggle: `alarms_enabled`, default on): an SNS
+   topic and two `Sum > 0` over 5 minutes alarms that publish to it:
    - `AWS/Lambda` `Errors`. It counts **failed invocations** only: crashes, timeouts,
      init failures (e.g. `TABLE_NAME` unset, so `main` exits).
    - A log metric filter `{ $.level = "ERROR" }` on the function's log group, feeding a
      custom metric `AppErrors`. This catches **handled** errors: a DynamoDB failure the
      router answers with a 500 is a *successful* invocation, invisible to `Errors`.
 
-   Keep the address out of git like `BUDGET_EMAIL`: `export ALARM_EMAIL="you@example.com"`
-   in `~/.bashrc`, and `alarm_email = get_env("ALARM_EMAIL")` in the `fn` unit. After apply,
-   confirm the subscription from the email AWS sends, or nothing is delivered.
+   Subscribe your email **outside Terraform**, once, then click the confirmation link AWS
+   sends (until then nothing is delivered):
+
+   ```bash
+   topic=$(cd infra/live/dev/p1-shortener/fn && terragrunt output -raw alarm_topic_arn)
+   aws sns subscribe --topic-arn "$topic" --protocol email --notification-endpoint you@example.com
+   ```
+
+   Why not an `aws_sns_topic_subscription` fed by `get_env("ALARM_EMAIL")`? A required env
+   var makes *every* Terragrunt command on the unit fail without it, `destroy` included:
+   `run --all destroy` removes `api`, then stops at `fn`, leaving you half torn down. Plans
+   should not depend on who runs them. Bonus: the address never lands in Terraform state.
 4. Break it on purpose and predict which alarm fires before you look:
    - Drift the config outside Terraform:
      `aws lambda update-function-configuration --function-name agentic-aws-dev-shortener --environment "Variables={TABLE_NAME=nope}"`.
