@@ -1,8 +1,17 @@
+import { ShortenForm } from "@/components/ShortenForm";
+
 export default function HomePage() {
   return (
-    <main className="mx-auto w-full max-w-xl px-4 py-16">
-      <h1 className="text-3xl font-semibold">Shorten a link</h1>
-      <p className="mt-2 text-sm opacity-70">The form arrives in M2.</p>
-    </main>
+    <div className="space-y-8">
+      <div className="space-y-2">
+        <h1 className="font-mono text-3xl font-semibold tracking-tight text-balance">
+          Shorten a link
+        </h1>
+        <p className="text-muted-foreground">
+          Paste a long URL, get a short one, and see how many times it was opened.
+        </p>
+      </div>
+      <ShortenForm />
+    </div>
   );
 }
