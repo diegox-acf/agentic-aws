@@ -18,6 +18,11 @@ output "role_arn" {
   description = "Execution role ARN."
 }
 
+output "alarm_topic_arn" {
+  value       = one(aws_sns_topic.alarms[*].arn)
+  description = "SNS topic the alarms notify; null when alarm_email is not set."
+}
+
 output "log_group_name" {
   value       = aws_cloudwatch_log_group.this.name
   description = "CloudWatch log group the function writes to."

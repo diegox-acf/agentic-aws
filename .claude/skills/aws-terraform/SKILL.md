@@ -50,6 +50,11 @@ description: "Use when creating, editing, or reviewing Terraform modules or Terr
 - Always set `source_code_hash = data.archive_file.<x>.output_base64sha256`; `filename`
   never changes, so without it a rebuilt binary is never deployed.
 - `depends_on` the log group and role policy so the first invoke can log.
+- `AWS/Lambda` `Errors` counts failed invocations only (crash, timeout, init). An error the
+  app handles and answers with a 500 is a successful invocation: alarm on it with a log
+  metric filter (`{ $.level = "ERROR" }` for slog JSON). Verify patterns with
+  `aws logs test-metric-filter` before applying. Use `treat_missing_data = "notBreaching"`.
+- Emails (alarms, budgets) come from env vars via `get_env`, never committed.
 - This account's Lambda concurrency limit is 10, so `reserved_concurrent_executions` is
   unavailable (AWS keeps 10 unreserved). Cap abuse at the API instead; check with
   `aws lambda get-account-settings` before proposing it.
