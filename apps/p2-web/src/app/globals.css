@@ -1,26 +1,51 @@
 @import "tailwindcss";
 
+/*
+ * Design tokens from ui-ux-pro-max (--design-system "developer tool url shortener utility
+ * minimal", variance 3, motion 2): Minimalism & Swiss style, dark "code" palette, green accent.
+ * Contrast checked against WCAG 2.2 AA; two values changed from the suggestion:
+ *   destructive #EF4444 -> #F87171 (4.16:1 on card fails text; now 5.66:1)
+ *   input-border added #64748B (3.29:1 on card; the 3:1 non-text minimum for field edges,
+ *   which the suggested border #475569 at 2.36:1 misses; it stays for decorative dividers)
+ */
+@theme {
+  --color-background: #0f172a;
+  --color-foreground: #f8fafc;
+  --color-card: #1b2336;
+  --color-muted: #272f42;
+  --color-muted-foreground: #94a3b8;
+  --color-border: #475569;
+  --color-input-border: #64748b;
+  --color-accent: #22c55e;
+  --color-on-accent: #0f172a;
+  --color-destructive: #f87171;
+  --color-ring: #ffffff;
+
+  --font-sans: var(--font-plex-sans), ui-sans-serif, system-ui, sans-serif;
+  --font-mono: var(--font-jetbrains-mono), ui-monospace, monospace;
+}
+
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
-}
-
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+  color-scheme: dark;
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  background: var(--color-background);
+  color: var(--color-foreground);
+  font-family: var(--font-sans);
+}
+
+/* JetBrains Mono's coding ligatures fuse "://" and "//" into one glyph; URLs must show
+   exactly what was typed. */
+.url-text {
+  font-variant-ligatures: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    transition-duration: 0.01ms !important;
+    animation-duration: 0.01ms !important;
+  }
 }
