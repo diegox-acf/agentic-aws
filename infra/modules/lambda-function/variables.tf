@@ -61,3 +61,15 @@ variable "timeout" {
     error_message = "timeout must be between 1 and 900 seconds."
   }
 }
+
+variable "alarm_email" {
+  type        = string
+  default     = null
+  description = "Email notified by the error alarms via SNS. If null, no topic or alarms are created."
+
+  validation {
+    # Terraform does not short-circuit ||, so regex(null) would error; use a conditional.
+    condition     = var.alarm_email == null ? true : can(regex("^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$", var.alarm_email))
+    error_message = "alarm_email must be null or an email address."
+  }
+}

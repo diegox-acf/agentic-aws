@@ -35,6 +35,7 @@ type handler struct {
 func NewRouter(svc LinkService, logger *slog.Logger) http.Handler {
 	h := &handler{svc: svc, logger: logger}
 	r := chi.NewRouter()
+	r.Use(logRequests(logger))
 	r.NotFound(func(w http.ResponseWriter, _ *http.Request) {
 		writeError(w, http.StatusNotFound, "not found")
 	})
@@ -134,7 +135,8 @@ func (h *handler) writeServiceError(w http.ResponseWriter, r *http.Request, err 
 		writeError(w, http.StatusNotFound, "not found")
 	default:
 		h.logger.ErrorContext(r.Context(), "request failed",
-			"method", r.Method, "path", r.URL.Path, "code", chi.URLParam(r, "code"), "err", err)
+			"method", r.Method, "path", r.URL.Path, "code", chi.URLParam(r, "code"),
+			"request_id", requestID(r), "err", err)
 		writeError(w, http.StatusInternalServerError, "internal error")
 	}
 }

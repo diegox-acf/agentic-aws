@@ -79,3 +79,70 @@ resource "aws_lambda_function" "this" {
   # The first invoke must find its log group and permissions already in place.
   depends_on = [aws_cloudwatch_log_group.this, aws_iam_role_policy.this]
 }
+
+# 6. Alarms (only when alarm_email is set): email on failed invocations and on app errors.
+locals {
+  alarms = var.alarm_email == null ? 0 : 1
+}
+
+resource "aws_sns_topic" "alarms" {
+  count = local.alarms
+  name  = "${local.function_name}-alarms"
+}
+
+# Stays "pending confirmation" until the recipient clicks the link AWS emails them.
+resource "aws_sns_topic_subscription" "email" {
+  count     = local.alarms
+  topic_arn = aws_sns_topic.alarms[0].arn
+  protocol  = "email"
+  endpoint  = var.alarm_email
+}
+
+# AWS/Lambda Errors counts FAILED invocations: crashes, timeouts, init failures. A handled
+# error the app answers with an HTTP 500 is a successful invocation and does not count.
+resource "aws_cloudwatch_metric_alarm" "errors" {
+  count               = local.alarms
+  alarm_name          = "${local.function_name}-errors"
+  alarm_description   = "Invocations failed (crash, timeout or init error)."
+  namespace           = "AWS/Lambda"
+  metric_name         = "Errors"
+  dimensions          = { FunctionName = aws_lambda_function.this.function_name }
+  statistic           = "Sum"
+  period              = 300
+  evaluation_periods  = 1
+  comparison_operator = "GreaterThanThreshold"
+  threshold           = 0
+  treat_missing_data  = "notBreaching" # no invocations is healthy, not "insufficient data"
+  alarm_actions       = [aws_sns_topic.alarms[0].arn]
+  ok_actions          = [aws_sns_topic.alarms[0].arn]
+}
+
+# Handled errors: each JSON log line with "level":"ERROR" (slog) adds 1 to a custom metric.
+resource "aws_cloudwatch_log_metric_filter" "app_errors" {
+  count          = local.alarms
+  name           = "${local.function_name}-app-errors"
+  log_group_name = aws_cloudwatch_log_group.this.name
+  pattern        = "{ $.level = \"ERROR\" }"
+
+  metric_transformation {
+    name      = "AppErrors"
+    namespace = "${var.project}/${var.env}/${var.name}"
+    value     = "1"
+  }
+}
+
+resource "aws_cloudwatch_metric_alarm" "app_errors" {
+  count               = local.alarms
+  alarm_name          = "${local.function_name}-app-errors"
+  alarm_description   = "The app logged an ERROR (e.g. a DynamoDB failure answered with a 500)."
+  namespace           = aws_cloudwatch_log_metric_filter.app_errors[0].metric_transformation[0].namespace
+  metric_name         = aws_cloudwatch_log_metric_filter.app_errors[0].metric_transformation[0].name
+  statistic           = "Sum"
+  period              = 300
+  evaluation_periods  = 1
+  comparison_operator = "GreaterThanThreshold"
+  threshold           = 0
+  treat_missing_data  = "notBreaching"
+  alarm_actions       = [aws_sns_topic.alarms[0].arn]
+  ok_actions          = [aws_sns_topic.alarms[0].arn]
+}

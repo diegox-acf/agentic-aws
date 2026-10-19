@@ -390,9 +390,24 @@ Fix findings, then add each lesson to `.claude/skills/aws-terraform/SKILL.md`.
    | stats count() by route, status
    ```
 
-3. Add to the `lambda-function` module: an SNS topic + email subscription and a
-   `aws_cloudwatch_metric_alarm` on `AWS/Lambda` `Errors` `Sum > 0` over 5 minutes.
-4. Break it on purpose (bad `TABLE_NAME`), watch the alarm fire, read the logs, fix.
+3. Add to the `lambda-function` module, created only when an `alarm_email` input is set: an
+   SNS topic + email subscription, and two `Sum > 0` over 5 minutes alarms:
+   - `AWS/Lambda` `Errors`. It counts **failed invocations** only: crashes, timeouts,
+     init failures (e.g. `TABLE_NAME` unset, so `main` exits).
+   - A log metric filter `{ $.level = "ERROR" }` on the function's log group, feeding a
+     custom metric `AppErrors`. This catches **handled** errors: a DynamoDB failure the
+     router answers with a 500 is a *successful* invocation, invisible to `Errors`.
+
+   Keep the address out of git like `BUDGET_EMAIL`: `export ALARM_EMAIL="you@example.com"`
+   in `~/.bashrc`, and `alarm_email = get_env("ALARM_EMAIL")` in the `fn` unit. After apply,
+   confirm the subscription from the email AWS sends, or nothing is delivered.
+4. Break it on purpose and predict which alarm fires before you look:
+   - Drift the config outside Terraform:
+     `aws lambda update-function-configuration --function-name agentic-aws-dev-shortener --environment "Variables={TABLE_NAME=nope}"`.
+     Requests now get 500 (the role may only touch the real table: `AccessDeniedException`),
+     so `AppErrors` fires and `Errors` stays OK.
+   - Read the logs, then `terragrunt plan` in `fn`: Terraform shows the drift.
+     `terragrunt apply` puts `TABLE_NAME` back; the alarm returns to OK and emails you.
 5. `> Use ecc:silent-failure-hunter on apps/p1-shortener`. Does any path swallow a DynamoDB error and return 404?
 
 ## M7 · Verify, commit, learn
