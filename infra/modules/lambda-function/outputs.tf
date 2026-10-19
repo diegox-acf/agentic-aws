@@ -1,0 +1,24 @@
+output "function_name" {
+  value       = aws_lambda_function.this.function_name
+  description = "Function name."
+}
+
+output "function_arn" {
+  value       = aws_lambda_function.this.arn
+  description = "Function ARN."
+}
+
+output "invoke_arn" {
+  value       = aws_lambda_function.this.invoke_arn
+  description = "ARN API Gateway uses as the integration URI."
+}
+
+output "role_arn" {
+  value       = aws_iam_role.this.arn
+  description = "Execution role ARN."
+}
+
+output "log_group_name" {
+  value       = aws_cloudwatch_log_group.this.name
+  description = "CloudWatch log group the function writes to."
+}
