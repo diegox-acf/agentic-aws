@@ -7,6 +7,7 @@ package main
 import (
 	"context"
 	"errors"
+	"fmt"
 	"log/slog"
 	"net/http"
 	"os"
@@ -51,7 +52,7 @@ func run(logger *slog.Logger) error {
 	// Locally, region and credentials come from AWS_PROFILE (~/.aws/config, SSO).
 	cfg, err := config.LoadDefaultConfig(ctx)
 	if err != nil {
-		return err
+		return fmt.Errorf("load AWS config: %w", err)
 	}
 	svc := links.NewService(
 		store.NewDynamo(dynamodb.NewFromConfig(cfg), table),

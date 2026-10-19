@@ -5,6 +5,7 @@ package main
 import (
 	"context"
 	"errors"
+	"fmt"
 	"log/slog"
 	"os"
 	"time"
@@ -42,7 +43,7 @@ func newAdapter(ctx context.Context, logger *slog.Logger) (*httpadapter.HandlerA
 	// (AWS_REGION and the execution role's temporary keys).
 	cfg, err := config.LoadDefaultConfig(ctx)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("load AWS config: %w", err)
 	}
 	svc := links.NewService(
 		store.NewDynamo(dynamodb.NewFromConfig(cfg), table),

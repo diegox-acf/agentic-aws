@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"io"
 	"log/slog"
 	"net/http"
 	"time"
@@ -63,9 +64,12 @@ type statsResponse struct {
 
 func (h *handler) createLink(w http.ResponseWriter, r *http.Request) {
 	var req createRequest
-	body := http.MaxBytesReader(w, r.Body, maxBodyBytes)
-	if err := json.NewDecoder(body).Decode(&req); err != nil {
-		writeError(w, http.StatusBadRequest, "body must be JSON like {\"url\": \"https://...\"}, at most 8 KiB")
+	if err := decodeRequest(w, r, &req); err != nil {
+		if _, tooLarge := errors.AsType[*http.MaxBytesError](err); tooLarge {
+			writeError(w, http.StatusRequestEntityTooLarge, "body must be at most 8 KiB")
+			return
+		}
+		writeError(w, http.StatusBadRequest, "body must be one JSON object like {\"url\": \"https://...\"}")
 		return
 	}
 	link, err := h.svc.Create(r.Context(), req.URL)
@@ -100,6 +104,24 @@ func (h *handler) stats(w http.ResponseWriter, r *http.Request) {
 		Clicks:    link.Clicks,
 		CreatedAt: link.CreatedAt.UTC().Format(time.RFC3339),
 	})
+}
+
+// decodeRequest reads exactly one JSON value of at most maxBodyBytes into dst. Oversized bodies
+// return *http.MaxBytesError.
+func decodeRequest(w http.ResponseWriter, r *http.Request, dst any) error {
+	dec := json.NewDecoder(http.MaxBytesReader(w, r.Body, maxBodyBytes))
+	if err := dec.Decode(dst); err != nil {
+		return err
+	}
+	// Anything after the object (a second value, junk) means we'd silently use half the input.
+	switch err := dec.Decode(&struct{}{}); {
+	case errors.Is(err, io.EOF):
+		return nil
+	case err != nil:
+		return err
+	default:
+		return errors.New("unexpected data after the JSON object")
+	}
 }
 
 // writeServiceError maps domain errors to status codes. Anything unexpected is logged in full

@@ -87,7 +87,9 @@ func validateURL(raw string) error {
 		return ErrInvalidURL
 	}
 	// url.Parse lowercases the scheme, so "HTTPS" arrives here as "https".
-	if (u.Scheme != "http" && u.Scheme != "https") || u.Host == "" {
+	// Hostname() drops the port, so "http://:80" has no host. Userinfo is rejected because
+	// "https://trusted.com@evil.com" reads like trusted.com but goes to evil.com.
+	if (u.Scheme != "http" && u.Scheme != "https") || u.Hostname() == "" || u.User != nil {
 		return ErrInvalidURL
 	}
 	return nil
