@@ -99,6 +99,45 @@ describe("failures without a usable response", () => {
   });
 });
 
+// Fields from the API end up in hrefs; P1 validates them today, but the client doesn't rely on it.
+describe("untrusted fields in a 2xx body", () => {
+  const createdAt = "2026-10-19T09:00:00Z";
+
+  it.each([
+    ["a javascript: destination", { url: "javascript:alert(1)", clicks: 0, createdAt }],
+    ["a data: destination", { url: "data:text/html,<script>alert(1)</script>", clicks: 0, createdAt }],
+    ["a createdAt that is not a timestamp", { url: "https://aws.amazon.com/", clicks: 0, createdAt: "yesterday" }],
+  ])("rejects stats with %s", async (_label, body) => {
+    fetchMock.mockResolvedValue(jsonResponse(200, body));
+
+    await expect(getStats("aB3xY9z")).rejects.toMatchObject({
+      status: 200,
+      message: expect.stringMatching(/unexpected response/i),
+    });
+  });
+
+  it.each([
+    ["a javascript: shortUrl", { code: "aB3xY9z", shortUrl: "javascript:alert(1)" }],
+    ["a code that is not 7 base62 characters", { code: "../x?y=1", shortUrl: `${API}/aB3xY9z` }],
+  ])("rejects a short link with %s", async (_label, body) => {
+    fetchMock.mockResolvedValue(jsonResponse(201, body));
+
+    await expect(createLink("https://example.com")).rejects.toMatchObject({
+      status: 201,
+      message: expect.stringMatching(/unexpected response/i),
+    });
+  });
+});
+
+describe("configuration errors", () => {
+  it("reports a missing NEXT_PUBLIC_API_URL as such, not as a network failure", async () => {
+    vi.stubEnv("NEXT_PUBLIC_API_URL", "");
+
+    await expect(createLink("https://example.com")).rejects.toThrow(/NEXT_PUBLIC_API_URL is not set/);
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+});
+
 describe("userMessage", () => {
   it.each([
     [new ApiError(400, "invalid url: must be http or https"), /invalid url/],

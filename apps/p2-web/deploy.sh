@@ -4,6 +4,8 @@
 # Usage: apps/p2-web/deploy.sh
 #   DRY_RUN=1  build and show what would be uploaded or deleted, without changing anything
 #   API=https://...  build against another API instead of the p1-shortener/api output
+# A failed run is safe to rerun: every step is idempotent.
+# Needs bash >= 4.3 and GNU find (Git Bash and Linux have both; stock macOS does not).
 set -euo pipefail
 
 export AWS_PROFILE=${AWS_PROFILE:-learn-admin}
@@ -11,16 +13,21 @@ repo=$(git -C "$(dirname "$0")" rev-parse --show-toplevel)
 live=$repo/infra/live/dev
 cd "$repo/apps/p2-web"
 
-output() { # output <unit under infra/live/dev> <name>; empty if the unit isn't applied
-  (cd "$live/$1" && terragrunt output -raw "$2" 2>/dev/null) || true
+tg_log=$(mktemp)
+trap 'rm -f "$tg_log"' EXIT
+
+output() { # output <unit under infra/live/dev> <name>; on failure shows terragrunt's own error
+  (cd "$live/$1" && terragrunt output -raw "$2" 2>"$tg_log") && return
+  echo "terragrunt output $2 failed in infra/live/dev/$1 (not applied? SSO expired?):" >&2
+  tail -n 5 "$tg_log" >&2
+  return 1
 }
 
+# Each assignment stops the script (set -e) if output fails.
 bucket=$(output p2-web/site bucket_name)
 dist=$(output p2-web/site distribution_id)
 domain=$(output p2-web/site domain_name)
 api=${API:-$(output p1-shortener/api api_endpoint)}
-[[ -n "$bucket" && -n "$dist" && -n "$domain" ]] || { echo "no site outputs: is p2-web/site applied?" >&2; exit 1; }
-[[ -n "$api" ]] || { echo "no api_endpoint: is p1-shortener/api applied?" >&2; exit 1; }
 
 dry=()
 [[ "${DRY_RUN:-}" == 1 ]] && dry=(--dryrun)
@@ -67,6 +74,10 @@ mapfile -t exts < <(find out -type f -printf '%f\n' | sed 's/^[^.]*$/(none)/; s/
 for ext in "${exts[@]}"; do
   [[ -v "content_types[$ext]" ]] || { echo "no Content-Type for .$ext files: add it to content_types" >&2; exit 1; }
 done
+# HTML last, so a page goes up only after the .txt payloads and assets it references.
+others=()
+for ext in "${exts[@]}"; do [[ "$ext" == html ]] || others+=("$ext"); done
+exts=("${others[@]}" html)
 
 upload() { # upload <local dir> <bucket prefix> <cache-control> [extra sync args...]
   local src=$1 prefix=$2 cache=$3
@@ -103,7 +114,8 @@ site="https://$domain"
 failures=0
 check() { # check <path> <want "status content-type">
   local got
-  got=$(curl -s --max-time 10 -o /dev/null -w '%{http_code} %{content_type}' "$site$1")
+  # "|| true": a timeout must count as a FAIL, not stop the script (set -e) before the summary.
+  got=$(curl -s --max-time 10 -o /dev/null -w '%{http_code} %{content_type}' "$site$1") || true
   if [[ "$got" == "$2" ]]; then echo "ok   $1 -> $got"; else echo "FAIL $1: want '$2', got '$got'"; failures=$((failures + 1)); fi
 }
 check / "200 text/html; charset=utf-8"

@@ -33,6 +33,11 @@ export function validateUrl(input: string): UrlCheck {
   return { ok: true, url };
 }
 
+// For URLs that come back from the API and end up in hrefs: only http(s), never javascript:.
+export function isHttpUrl(value: string): boolean {
+  return SCHEME_AND_HOST.test(value);
+}
+
 const CODE = /^[0-9A-Za-z]{7}$/; // links.ValidCode: 7 base62 characters
 
 export function isValidCode(code: string): boolean {

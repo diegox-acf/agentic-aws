@@ -52,7 +52,7 @@ const StatsView = () => {
   if (outcome.error instanceof ApiError && outcome.error.status === 404) {
     return (
       <div className="space-y-4">
-        <p>{userMessage(outcome.error)}</p>
+        <p role="status">{userMessage(outcome.error)}</p>
         <Link href="/" className="text-accent underline underline-offset-4">
           Shorten a link
         </Link>

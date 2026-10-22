@@ -1,12 +1,13 @@
 import { z } from "zod";
 
 import { apiBaseUrl } from "./config";
-import { isValidCode } from "./validation";
+import { isHttpUrl, isValidCode } from "./validation";
 
 // Response shapes of the P1 API (apps/p1-shortener/internal/httpapi/router.go). The body comes
-// from the network, so it is parsed, not trusted.
-const shortLinkSchema = z.object({ code: z.string(), shortUrl: z.string() });
-const linkStatsSchema = z.object({ url: z.string(), clicks: z.number(), createdAt: z.string() });
+// from the network, so it is parsed, not trusted: URLs land in hrefs and the code in a link.
+const httpUrl = z.string().refine(isHttpUrl);
+const shortLinkSchema = z.object({ code: z.string().refine(isValidCode), shortUrl: httpUrl });
+const linkStatsSchema = z.object({ url: httpUrl, clicks: z.number(), createdAt: z.iso.datetime() });
 const errorBodySchema = z.object({ error: z.string() });
 
 export type ShortLink = z.infer<typeof shortLinkSchema>;
@@ -42,9 +43,10 @@ export function getStats(code: string): Promise<LinkStats> {
 }
 
 async function request<T>(path: string, schema: z.ZodType<T>, init: RequestInit = {}): Promise<T> {
+  const base = apiBaseUrl(); // outside the try: a build without the API URL is not a network error
   let response: Response;
   try {
-    response = await fetch(`${apiBaseUrl()}${path}`, {
+    response = await fetch(`${base}${path}`, {
       ...init,
       signal: AbortSignal.timeout(TIMEOUT_MS),
     });

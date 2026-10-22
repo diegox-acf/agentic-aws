@@ -60,7 +60,8 @@ describe("StatsView", () => {
 
     render(<StatsView />);
 
-    expect(await screen.findByText(/no link with that code/i)).toBeInTheDocument();
+    // A live region, so screen readers hear the switch from "Loading…" to "not found".
+    expect(await screen.findByText(/no link with that code/i)).toHaveAttribute("role", "status");
     expect(screen.getByRole("link", { name: /shorten a link/i })).toHaveAttribute("href", "/");
   });
 
