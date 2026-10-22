@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { isValidCode, MAX_URL_BYTES, validateUrl } from "./validation";
+import { isHttpUrl, isValidCode, MAX_URL_BYTES, validateUrl } from "./validation";
 
 // Mirrors TestServiceCreate_ValidatesURL in apps/p1-shortener/internal/links/service_test.go.
 // The server stays authoritative; this only spares a round trip for obvious mistakes.
@@ -39,6 +39,19 @@ describe("validateUrl", () => {
     expect(result.ok).toBe(false);
     expect(result.ok ? "" : result.error).toMatch(message);
   });
+});
+
+describe("isHttpUrl", () => {
+  it.each(["https://aws.amazon.com/", "http://localhost:3000/x", "HTTPS://EXAMPLE.COM"])("accepts %s", (url) => {
+    expect(isHttpUrl(url)).toBe(true);
+  });
+
+  it.each(["javascript:alert(1)", "data:text/html,x", "https:example.com", "//example.com", ""])(
+    "rejects %j",
+    (url) => {
+      expect(isHttpUrl(url)).toBe(false);
+    },
+  );
 });
 
 describe("isValidCode", () => {

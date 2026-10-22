@@ -121,14 +121,23 @@ resource "aws_cloudfront_function" "index_rewrite" {
   name    = "${var.project}-${var.env}-${var.name}-index"
   runtime = "cloudfront-js-2.0"
   publish = true
-  code    = <<-JS
-    function handler(event) {
-      var req = event.request;
-      if (req.uri.endsWith('/')) { req.uri += 'index.html'; }
-      else if (!req.uri.includes('.')) { req.uri += '/index.html'; }
-      return req;
-    }
-  JS
+  code    = file("${path.module}/index-rewrite.js") # a real file: easy to test with node
+}
+```
+
+```js
+// index-rewrite.js: /stats/ -> /stats/index.html, /stats -> /stats/index.html.
+// Only the LAST segment decides "is this a file?", so /v1.2/docs is still a directory.
+function handler(event) {
+  var request = event.request;
+  var uri = request.uri;
+  var lastSegment = uri.substring(uri.lastIndexOf('/') + 1);
+  if (uri.endsWith('/')) {
+    request.uri = uri + 'index.html';
+  } else if (!lastSegment.includes('.')) {
+    request.uri = uri + '/index.html';
+  }
+  return request; // the query string (?code=...) is not part of uri, so it survives
 }
 ```
 
@@ -144,6 +153,19 @@ Review before applying, with security focus:
 ```
 > Use ecc:security-reviewer on infra/modules/static-site. Can anything read the bucket except this distribution?
 ```
+
+What the built module (`infra/modules/static-site`) adds on top of the snippet above:
+
+- `aws_s3_bucket_ownership_controls` = `BucketOwnerEnforced`: already the default for new
+  buckets, but explicit says "ACLs are off; only policies decide access".
+- A second bucket-policy statement denying any request with `aws:SecureTransport = false`.
+  OAC and `aws s3 sync` both use HTTPS, so nothing legitimate is affected.
+- The bucket policy references the distribution ARN, so Terraform creates the distribution
+  first and the policy last (`plan` shows the policy document as "read during apply").
+- Mapping 403 → `/404.html` has a cost: a broken bucket policy also looks like a 404 page.
+  When debugging, `curl -sI` the S3 object directly or check CloudFront's `x-cache` header.
+- Expect `minimum_protocol_version = "TLSv1"` in the plan: the default `*.cloudfront.net`
+  certificate can't be raised. A custom domain + ACM certificate can (`TLSv1.2_2021`).
 
 ### M4 · CORS on P1 (cross-project dependency)
 
@@ -164,6 +186,8 @@ In `infra/live/dev/p1-shortener/api/terragrunt.hcl`:
 dependency "web" {
   config_path  = "../../p2-web/site"
   mock_outputs = { domain_name = "example.cloudfront.net" }
+  # Without this, an apply while P2 isn't deployed would silently allow the fake origin.
+  mock_outputs_allowed_terraform_commands = ["init", "validate", "plan", "destroy"]
 }
 
 inputs = {
@@ -176,28 +200,47 @@ The dependency direction matters: P1's API depends on P2's distribution, never t
 reverse, so there's no cycle. The web app gets the API URL at **build** time, not from
 Terraform.
 
-### M5 · Deploy
+Two details that bite:
+
+- An origin is `scheme://host[:port]`, with **no trailing slash**. The browser sends
+  `Origin: https://d111.cloudfront.net`, so `https://d111.cloudfront.net/` never matches and
+  CORS fails with no hint why. The module rejects that (and `"*"`) with a `validation` block.
+- With `cors_configuration` set, API Gateway answers `OPTIONS` preflights itself: no route,
+  no Lambda invocation, no Lambda bill. It also adds `Access-Control-Allow-Origin` and
+  `Vary: Origin` to the Lambda's responses, so the Go code needs no CORS logic.
+
+Check it after the apply:
 
 ```bash
-root=$(git rev-parse --show-toplevel)
-live=$root/infra/live/dev
-
-(cd "$live/p2-web/site" && terragrunt apply)
-bucket=$(cd "$live/p2-web/site" && terragrunt output -raw bucket_name)
-dist=$(cd "$live/p2-web/site" && terragrunt output -raw distribution_id)
-(cd "$live/p1-shortener/api" && terragrunt apply)             # picks up the CORS origin
-export NEXT_PUBLIC_API_URL=$(cd "$live/p1-shortener/api" && terragrunt output -raw api_endpoint)
-
-cd "$root/apps/p2-web"
-pnpm build                                                    # -> out/
-# long cache for fingerprinted assets, no-cache for HTML
-aws s3 sync out/_next/static "s3://$bucket/_next/static" --cache-control "public,max-age=31536000,immutable"
-aws s3 sync out "s3://$bucket" --delete --exclude "_next/static/*" --cache-control "no-cache"
-# MSYS_NO_PATHCONV stops Git Bash from turning "/*" into a Windows path
-MSYS_NO_PATHCONV=1 aws cloudfront create-invalidation --distribution-id "$dist" --paths "/*"
+api=$(cd infra/live/dev/p1-shortener/api && terragrunt output -raw api_endpoint)
+curl -si -X OPTIONS "$api/links" -H "Origin: https://<your-domain>.cloudfront.net" \
+  -H "Access-Control-Request-Method: POST" -H "Access-Control-Request-Headers: content-type" \
+  | grep -iE '^HTTP|^access-control'                  # 204 + allow-origin = your domain
+curl -si -X OPTIONS "$api/links" -H "Origin: https://evil.example" \
+  -H "Access-Control-Request-Method: POST" | grep -iE '^HTTP|^access-control'   # no allow-origin
 ```
 
-Put this in `apps/p2-web/deploy.sh` once it works.
+### M5 · Deploy
+
+Infra first (you apply): `p2-web/site`, then `p1-shortener/api` to pick up the CORS origin.
+Then publish with `apps/p2-web/deploy.sh`:
+
+```bash
+DRY_RUN=1 apps/p2-web/deploy.sh   # build and list what would change in S3; changes nothing
+apps/p2-web/deploy.sh             # publish, invalidate, then check 4 URLs
+```
+
+It reads Terragrunt outputs (it never applies), runs the tests, builds with
+`NEXT_PUBLIC_API_URL`, and uploads. Why it looks the way it does:
+
+| Choice | Why |
+|---|---|
+| `_next/static/*` → `public, max-age=31536000, immutable`; the rest → `no-cache` | Hashed names change when content changes, so they can be cached forever. HTML keeps its URL, so browsers must revalidate (cheap 304s via ETag). |
+| Upload order: hashed assets, `.txt` payloads, HTML last, then delete stale pages | A visitor mid-deploy never gets HTML pointing at files that aren't there yet. Old chunks are kept so open tabs keep working. |
+| Explicit `--content-type` per extension; unknown extension = stop | The CLI guesses types from the OS (the registry on Windows). With the `nosniff` header a mislabeled `.js` won't run, and in a static export a `.txt` payload that isn't `text/plain` makes Next.js fall back to full page loads on every click. |
+| The delete pass uses `--size-only` | It must only delete; mtime-based sync could re-upload with guessed types. |
+| Invalidate `/*` and wait | HTML is `no-cache` already; this clears cached error pages. `/*` is one path (1,000 free/month). `MSYS_NO_PATHCONV=1` stops Git Bash rewriting `/*`. |
+| `terragrunt output` errors are shown, not swallowed | "SSO expired" and "not applied" need different fixes. |
 
 ### M6 · Verify in a real browser with ECC's chrome-devtools MCP
 
@@ -213,14 +256,40 @@ Then break CORS on purpose (remove the CloudFront origin, apply) and look at wha
 browser reports versus what `curl` reports. curl still works, because CORS is enforced
 by browsers, not by the API.
 
+**What this check found:** one console error, a 404 for
+`stats/__next.stats.__PAGE__.txt` (Lighthouse Best Practices 96). The export had written
+`stats/__next.stats/__PAGE__.txt`. It's a Next.js 16 bug that only happens when building on
+**Windows** ([vercel/next.js#85374](https://github.com/vercel/next.js/issues/85374)): the
+export collects segment files with `path.relative()`, which returns backslashes on Windows,
+and the file-name encoder only turns `/` into `.`. The router then gets a 404 for the
+segment prefetch and falls back to the whole page payload (`stats/index.txt`), so it still
+works, just slower and noisier. `deploy.sh` renames those files after the build
+(`flatten_segment_dirs`); on Linux/macOS builds it does nothing. After the fix: no console
+errors, Lighthouse 100 on every category.
+
+Lesson: "works in the browser" isn't "works as designed". Read the network panel, not just
+the page.
+
 ### M7 · Review, verify, learn
 
 ```
-/ecc:react-review
+/ecc:react-review                 # or the ecc:react-reviewer agent on apps/p2-web
+> Use ecc:code-reviewer on infra/modules/{static-site,http-api}, the two units and deploy.sh.
+> Work out the exact teardown order.
 ecc:verification-loop
-git commit -m "feat(p2): static frontend on cloudfront"
 /ecc:learn-eval
 ```
+
+What the reviews caught here, all fixed test-first:
+
+- Fields from the API landed in `href`s without a scheme check. P1 validates URLs today, but
+  the client shouldn't depend on it: the zod schemas now require `http(s)` URLs, a 7-character
+  code and an ISO timestamp, so a `javascript:` destination is rejected, never rendered.
+- A build without `NEXT_PUBLIC_API_URL` showed "Can't reach the API" (the config error was
+  thrown inside the `try` that maps network errors). Now it says what's actually wrong.
+- The "not found" message had no live region, so screen readers announced nothing.
+- `deploy.sh`: swallowed `terragrunt output` errors, a `curl` timeout that would silently
+  abort the final checks under `set -e`, and HTML uploaded before its `.txt` payloads.
 
 ---
 
@@ -241,15 +310,32 @@ git commit -m "feat(p2): static frontend on cloudfront"
 
 ## Teardown
 
-Idle cost is ~$0, so keep it if you like. Otherwise:
+Idle cost is ~$0, so keep it if you like. P1's `api` unit depends on P2's `site` unit
+(for the CORS origin), so the order matters.
+
+**Everything (P1 and P2).** Run from `infra/live/dev`, so Terragrunt sees both projects and
+orders the destroy itself: `api` before `site`, `fn` before `table`.
+
+```bash
+cd infra/live/dev
+terragrunt run --all -- plan -destroy   # read it first; run it in a shell without personal env vars
+terragrunt run --all destroy
+```
+
+Per project also works, P1 first: `cd infra/live/dev/p1-shortener && terragrunt run --all destroy`,
+then the same in `p2-web`. P2 first also works, because `destroy` may use the mock output.
+
+**Only P2, keeping P1.** Unhook P1 first:
 
 1. In `infra/live/dev/p1-shortener/api/terragrunt.hcl`, remove the `dependency "web"` block
-   and the CloudFront origin from `cors_origins`, then `terragrunt apply` that unit. (If you
-   destroy P2 first, the dependency has no outputs to read and P1's api unit errors.)
-2. Then:
+   and the CloudFront entry in `cors_origins` (keep `http://localhost:3000`), then
+   `terragrunt apply` that unit.
+2. `cd infra/live/dev/p2-web && terragrunt run --all destroy`
 
-   ```bash
-   cd infra/live/dev/p2-web && terragrunt run --all destroy
-   ```
+Why: with P2 gone, `plan` and `destroy` on P1's `api` still work (they may use the mock
+domain), but `apply` and `output` don't, because they aren't in
+`mock_outputs_allowed_terraform_commands`. And until you apply, the live API keeps allowing
+a CloudFront domain that no longer exists.
 
-CloudFront distributions take several minutes to disable and delete. That's normal.
+CloudFront distributions take several minutes to disable and delete; `force_destroy = true`
+empties the bucket. That's normal.
