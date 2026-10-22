@@ -41,9 +41,26 @@ declare -A content_types=(
 immutable="public, max-age=31536000, immutable" # _next/static: names contain a content hash
 revalidate="no-cache"                            # everything else: browsers check every time
 
+# Workaround for a Next.js 16 static-export bug on Windows (vercel/next.js#85374, fix pending
+# in PR #92340): segment prefetch files are written as stats/__next.stats/__PAGE__.txt, but
+# the router requests stats/__next.stats.__PAGE__.txt, gets a 404 and falls back to the full
+# payload. Rename them to the requested names. Builds on Linux/macOS have no such directories,
+# so this does nothing there (or once Next is fixed).
+flatten_segment_dirs() {
+  local dir file rel
+  while IFS= read -r -d '' dir; do
+    while IFS= read -r -d '' file; do
+      rel=${file#"$dir/"}
+      mv "$file" "$dir.${rel//\//.}"
+    done < <(find "$dir" -type f -print0)
+    find "$dir" -depth -type d -empty -delete
+  done < <(find out -type d -name '__next.*' -prune -print0)
+}
+
 echo "Building against $api"
 pnpm test
 NEXT_PUBLIC_API_URL=$api pnpm build
+flatten_segment_dirs
 
 # Fail before uploading anything if the export has a file type we have no Content-Type for.
 mapfile -t exts < <(find out -type f -printf '%f\n' | sed 's/^[^.]*$/(none)/; s/.*\.//' | sort -u)
