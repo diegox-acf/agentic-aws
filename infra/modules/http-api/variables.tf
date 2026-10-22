@@ -46,3 +46,18 @@ variable "throttling_burst_limit" {
   default     = 20
   description = "Maximum burst of concurrent requests allowed on the stage."
 }
+
+variable "cors_origins" {
+  type        = list(string)
+  default     = []
+  description = "Browser origins allowed to call the API (CORS), e.g. \"https://d111.cloudfront.net\". Empty disables CORS."
+
+  # An origin is scheme://host[:port] with no path or trailing slash: "https://x.net/" never
+  # matches the browser's Origin header. "*" would let any website's scripts read responses.
+  validation {
+    condition = alltrue([
+      for o in var.cors_origins : can(regex("^https?://[A-Za-z0-9.-]+(:[0-9]+)?$", o))
+    ])
+    error_message = "cors_origins must be origins like \"https://example.com\" or \"http://localhost:3000\": no \"*\", path or trailing slash."
+  }
+}

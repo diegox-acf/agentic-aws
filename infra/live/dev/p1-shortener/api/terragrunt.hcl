@@ -14,9 +14,22 @@ dependency "fn" {
   }
 }
 
+# Cross-project: P1's API allows P2's CloudFront origin (CORS). P1 depends on P2, never the
+# reverse; the web app gets the API URL at build time, so there is no cycle.
+dependency "web" {
+  config_path  = "../../p2-web/site"
+  mock_outputs = { domain_name = "example.cloudfront.net" }
+  # Mocks only where a fake origin can't reach AWS: an apply must use the real domain.
+  mock_outputs_allowed_terraform_commands = ["init", "validate", "plan", "destroy"]
+}
+
 inputs = {
   name                 = "shortener"
   lambda_function_name = dependency.fn.outputs.function_name
   lambda_invoke_arn    = dependency.fn.outputs.invoke_arn
   routes               = ["POST /links", "GET /{code}", "GET /links/{code}"]
+  cors_origins = [
+    "https://${dependency.web.outputs.domain_name}",
+    "http://localhost:3000", # pnpm dev
+  ]
 }

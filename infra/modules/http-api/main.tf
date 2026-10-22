@@ -5,6 +5,18 @@ locals {
 resource "aws_apigatewayv2_api" "this" {
   name          = local.api_name
   protocol_type = "HTTP"
+
+  # With CORS configured, API Gateway answers OPTIONS preflights itself (no route, no Lambda
+  # call) and adds Access-Control-* headers to the Lambda's responses. Omitted when empty.
+  dynamic "cors_configuration" {
+    for_each = length(var.cors_origins) > 0 ? [var.cors_origins] : []
+    content {
+      allow_origins = cors_configuration.value
+      allow_methods = ["GET", "POST"]
+      allow_headers = ["content-type"]
+      max_age       = 3600 # seconds the browser may reuse a preflight answer
+    }
+  }
 }
 
 # One integration: every route goes to the same Lambda, which routes again in Go (chi).
