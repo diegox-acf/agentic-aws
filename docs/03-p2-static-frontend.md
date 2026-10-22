@@ -31,6 +31,11 @@ behavior, edge functions, CORS.
  P1 HTTP API (CORS allow_origins = [cloudfront domain]) ──► Lambda ──► DynamoDB
 ```
 
+Interactive diagrams of what was built (open in a browser; every box links to its source):
+[architecture](diagrams/p2-architecture.html) ·
+[CORS preflight vs. simple GET](diagrams/p2-cors-sequence.html) ·
+[deploy.sh workflow](diagrams/p2-deploy-workflow.html)
+
 ## Cost
 
 | Resource | Here |

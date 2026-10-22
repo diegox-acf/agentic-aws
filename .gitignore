@@ -26,3 +26,6 @@ out/
 # Claude Code local config (hookify rules, local settings)
 .claude/*.local.md
 .claude/settings.local.json
+
+# Archify working folders (candidates, receipts, screenshots); finished diagrams live in docs/diagrams/
+.archify/

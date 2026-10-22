@@ -98,10 +98,10 @@ Tip: put `export MSYS_NO_PATHCONV=1` in `~/.zshrc` if you rarely pass Windows pa
 
 | Module | Done | Notes / what the reviewers caught |
 |---|---|---|
-| 0 ECC primer | ☐ | |
-| 1 Foundations | ☐ | |
-| 2 P1 Serverless API | ☐ | |
-| 3 P2 Static frontend | ☐ | |
+| 0 ECC primer | ☑ | |
+| 1 Foundations | ☑ | Windows paths in Terragrunt state keys (`replace` in `root.hcl`); SSO profile `learn-admin` |
+| 2 P1 Serverless API | ☑ | `get_env` without a default broke `destroy`; `Errors` misses handled 500s (added AppErrors from logs); no `logs:CreateLogGroup`; `-buildvcs=false` for reproducible zips |
+| 3 P2 Static frontend | ☑ | Next.js export bug on Windows (segment files); explicit Content-Types; `javascript:` hrefs from API data; teardown order P1 ↔ P2 |
 | 4 P3 Event pipeline | ☐ | |
 | 5 P4 Auth + CI/CD | ☐ | |
 | 6 P5 Three-tier VPC | ☐ | |

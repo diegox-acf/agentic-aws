@@ -18,7 +18,7 @@ Work through the modules in order. Each project module has the same shape:
 | Section | What it gives you |
 |---|---|
 | What you'll learn | The AWS concepts the project exists to teach |
-| Architecture | ASCII diagram of the resources |
+| Architecture | ASCII diagram of the resources, plus interactive diagrams once it's built |
 | Cost | What it costs and how to keep it near $0 |
 | Build steps | Milestones, each with the ECC command or prompt to drive it |
 | Check yourself | Questions to answer *without* Claude before moving on |
@@ -30,6 +30,9 @@ and one handler per project yourself. Ask Claude to review your version instead 
 generating it. You learn AWS by making the mistakes, not by reading generated code.
 
 ## Modules
+
+**Current module: 4 · P3 Event-driven import pipeline.** Modules 0–3 are done (P1 and P2
+deployed; see the progress tracker in the [cheat sheet](99-cheatsheet.md)).
 
 | # | Module | AWS focus | Language | ECC focus |
 |---|---|---|---|---|
@@ -95,4 +98,25 @@ agentic-aws/
 │           ├── p2-web/
 │           └── ...
 └── docs/                         # this tutorial
+    ├── adr/                      # architecture decision records
+    ├── diagrams/                 # interactive diagrams of what was built (archify)
+    └── site/                     # single-page docs site: node docs/site/build.mjs
 ```
+
+## Diagrams
+
+Made with the `archify` skill from the real code: each box links to the file and lines it
+describes. Every AWS service carries the AWS mark; archify has no per-service AWS icons.
+Open them in a browser.
+
+| Project | Diagram | Shows |
+|---|---|---|
+| P1 | [Architecture](diagrams/p1-architecture.html) | API Gateway → Lambda (Go layers) → DynamoDB, IAM role, logs, alarms, SNS |
+| P1 | [Redirect sequence](diagrams/p1-redirect-sequence.html) | `GET /{code}`: atomic click count, 301, and the not-found branch |
+| P1 | [Link lifecycle](diagrams/p1-link-lifecycle.html) | Requested → active → expired → deleted by TTL, with collisions and errors |
+| P2 | [Architecture](diagrams/p2-architecture.html) | Private S3 behind CloudFront (OAC, Function, bucket policy), calling P1 |
+| P2 | [CORS sequence](diagrams/p2-cors-sequence.html) | Why the POST gets a preflight and the stats GET doesn't |
+| P2 | [Deploy workflow](diagrams/p2-deploy-workflow.html) | `deploy.sh`: build, two cache classes, HTML last, invalidate, checks |
+
+To redraw one after the code changes, ask Claude to update it with archify; working files
+go to `.archify/` (git-ignored) and the finished HTML is copied here.
