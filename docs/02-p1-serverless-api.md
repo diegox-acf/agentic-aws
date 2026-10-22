@@ -27,9 +27,14 @@ keep it running after you finish.
             │  GET  /links/{code}       on table ARN only     clicks, expiresAt    │
             │  stage throttling                │                (TTL)              │
             │                                  ▼                                   │
-            │                       CloudWatch Logs (7d) ──► alarm on Errors ► SNS │
+            │             CloudWatch Logs (7d) ──► alarms: Errors, AppErrors ► SNS │
             └──────────────────────────────────────────────────────────────────────┘
 ```
+
+Interactive diagrams of what was built (open in a browser; every box links to its source):
+[architecture](diagrams/p1-architecture.html) ·
+[GET /{code} redirect sequence](diagrams/p1-redirect-sequence.html) ·
+[life of a short link](diagrams/p1-link-lifecycle.html)
 
 ## Cost
 

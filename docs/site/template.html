@@ -424,6 +424,8 @@ a:focus-visible, button:focus-visible, input:focus-visible { outline: 2px solid 
       const m = href.match(/^(\d\d)-[\w-]+\.md(?:#.*)?$/);
       if (m) { a.setAttribute('href', '#m' + m[1]); return; }
       if (/^README\.md/.test(href)) { a.setAttribute('href', '#start'); return; }
+      // docs/diagrams/*.html are standalone pages; this page lives one level down, in docs/site/
+      if (/^diagrams\//.test(href)) { a.setAttribute('href', '../' + href); a.target = '_blank'; a.rel = 'noopener'; return; }
       if (/^https?:/.test(href)) { a.target = '_blank'; a.rel = 'noopener'; }
     });
     // tables scroll inside their own box
