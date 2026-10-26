@@ -23,11 +23,42 @@ dependency "web" {
   mock_outputs_allowed_terraform_commands = ["init", "validate", "plan", "destroy"]
 }
 
+locals {
+  fn_key = "shortener"
+}
+
+# One-time state migration (P3 M1): http-api went from one integration and permission to one
+# per function, so their addresses gained a key. Without these moved blocks Terraform would
+# destroy and recreate both, and the API would fail for a moment. Remove once applied.
+generate "moved" {
+  path      = "moved.tf"
+  if_exists = "overwrite_terragrunt"
+  contents  = <<-EOF
+    moved {
+      from = aws_apigatewayv2_integration.lambda
+      to   = aws_apigatewayv2_integration.lambda["${local.fn_key}"]
+    }
+
+    moved {
+      from = aws_lambda_permission.apigw
+      to   = aws_lambda_permission.apigw["${local.fn_key}"]
+    }
+  EOF
+}
+
 inputs = {
-  name                 = "shortener"
-  lambda_function_name = dependency.fn.outputs.function_name
-  lambda_invoke_arn    = dependency.fn.outputs.invoke_arn
-  routes               = ["POST /links", "GET /{code}", "GET /links/{code}"]
+  name = "shortener"
+  functions = {
+    (local.fn_key) = {
+      invoke_arn    = dependency.fn.outputs.invoke_arn
+      function_name = dependency.fn.outputs.function_name
+    }
+  }
+  routes = {
+    "POST /links"       = local.fn_key
+    "GET /{code}"       = local.fn_key
+    "GET /links/{code}" = local.fn_key
+  }
   cors_origins = [
     "https://${dependency.web.outputs.domain_name}",
     "http://localhost:3000", # pnpm dev

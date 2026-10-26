@@ -7,33 +7,35 @@ resource "aws_apigatewayv2_api" "this" {
   protocol_type = "HTTP"
 
   # With CORS configured, API Gateway answers OPTIONS preflights itself (no route, no Lambda
-  # call) and adds Access-Control-* headers to the Lambda's responses. Omitted when empty.
+  # call) and adds Access-Control-* headers to the Lambdas' responses. Omitted when empty.
   dynamic "cors_configuration" {
     for_each = length(var.cors_origins) > 0 ? [var.cors_origins] : []
     content {
       allow_origins = cors_configuration.value
-      allow_methods = ["GET", "POST"]
+      allow_methods = ["GET", "POST"] # a browser call with any other method fails its preflight
       allow_headers = ["content-type"]
       max_age       = 3600 # seconds the browser may reuse a preflight answer
     }
   }
 }
 
-# One integration: every route goes to the same Lambda, which routes again in Go (chi).
+# One integration per function. A function can still route internally: P1's Go Lambda gets
+# all its routes through one integration and routes them again with chi.
 resource "aws_apigatewayv2_integration" "lambda" {
+  for_each               = var.functions
   api_id                 = aws_apigatewayv2_api.this.id
   integration_type       = "AWS_PROXY"
-  integration_uri        = var.lambda_invoke_arn
+  integration_uri        = each.value.invoke_arn
   payload_format_version = "2.0"
 }
 
 # Explicit routes, no $default route: unknown paths get a 404 from API Gateway
-# without invoking (or billing) the Lambda.
+# without invoking (or billing) any Lambda.
 resource "aws_apigatewayv2_route" "routes" {
-  for_each  = toset(var.routes)
+  for_each  = var.routes
   api_id    = aws_apigatewayv2_api.this.id
-  route_key = each.value
-  target    = "integrations/${aws_apigatewayv2_integration.lambda.id}"
+  route_key = each.key
+  target    = "integrations/${aws_apigatewayv2_integration.lambda[each.value].id}"
 }
 
 # Access logs show what Lambda logs never see: throttled (429) and unmatched (404) requests.
@@ -65,11 +67,12 @@ resource "aws_apigatewayv2_stage" "default" {
   }
 }
 
-# Resource-based policy on the function: lets THIS API (any stage, method, path) invoke it.
+# Resource-based policy on each function: lets THIS API (any stage, method, path) invoke it.
 resource "aws_lambda_permission" "apigw" {
-  statement_id  = "AllowHttpApiInvoke"
+  for_each      = var.functions
+  statement_id  = "AllowHttpApiInvoke" # changing it replaces the permission
   action        = "lambda:InvokeFunction"
-  function_name = var.lambda_function_name
+  function_name = each.value.function_name
   principal     = "apigateway.amazonaws.com"
   source_arn    = "${aws_apigatewayv2_api.this.execution_arn}/*/*"
 }

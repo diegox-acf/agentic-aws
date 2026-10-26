@@ -13,25 +13,39 @@ variable "name" {
   description = "API name suffix; the full name is <project>-<env>-<name>."
 }
 
-variable "lambda_function_name" {
-  type        = string
-  description = "Name of the Lambda function the API invokes (for the invoke permission)."
-}
+# Keyed by a static name, never by function_name: for_each keys must be known at plan time,
+# and a function that doesn't exist yet has no name until apply.
+variable "functions" {
+  type = map(object({
+    invoke_arn    = string # the integration URI
+    function_name = string # for the invoke permission
+  }))
+  description = "Lambda functions the API invokes, keyed by a static name (e.g. \"shortener\") that routes refer to."
 
-variable "lambda_invoke_arn" {
-  type        = string
-  description = "Invoke ARN of the Lambda function (the integration URI)."
+  # Each permission adds statement "AllowHttpApiInvoke" to its function's policy; two keys on
+  # one function would collide at apply (ResourceConflictException), so catch it at plan.
+  validation {
+    condition = length(var.functions) > 0 && length(distinct([
+      for f in values(var.functions) : f.function_name
+    ])) == length(var.functions)
+    error_message = "functions must be non-empty, and each key must name a different function."
+  }
 }
 
 variable "routes" {
-  type        = list(string)
-  description = "Route keys sent to the Lambda, e.g. \"POST /links\"."
+  type        = map(string)
+  description = "Route key -> key in var.functions, e.g. { \"POST /links\" = \"shortener\" }."
 
   validation {
     condition = length(var.routes) > 0 && alltrue([
-      for r in var.routes : can(regex("^(GET|POST|PUT|PATCH|DELETE|HEAD|OPTIONS|ANY) /", r))
+      for r in keys(var.routes) : can(regex("^(GET|POST|PUT|PATCH|DELETE|HEAD|OPTIONS|ANY) /", r))
     ])
     error_message = "routes must be non-empty route keys of the form \"<METHOD> /<path>\"."
+  }
+
+  validation {
+    condition     = alltrue([for f in values(var.routes) : contains(keys(var.functions), f)])
+    error_message = "every routes value must be a key of var.functions."
   }
 }
 
