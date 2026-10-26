@@ -27,25 +27,6 @@ locals {
   fn_key = "shortener"
 }
 
-# One-time state migration (P3 M1): http-api went from one integration and permission to one
-# per function, so their addresses gained a key. Without these moved blocks Terraform would
-# destroy and recreate both, and the API would fail for a moment. Remove once applied.
-generate "moved" {
-  path      = "moved.tf"
-  if_exists = "overwrite_terragrunt"
-  contents  = <<-EOF
-    moved {
-      from = aws_apigatewayv2_integration.lambda
-      to   = aws_apigatewayv2_integration.lambda["${local.fn_key}"]
-    }
-
-    moved {
-      from = aws_lambda_permission.apigw
-      to   = aws_lambda_permission.apigw["${local.fn_key}"]
-    }
-  EOF
-}
-
 inputs = {
   name = "shortener"
   functions = {
