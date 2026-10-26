@@ -2,12 +2,13 @@ locals {
   function_name = "${var.project}-${var.env}-${var.name}"
 }
 
-# 1. The code: a zip with the "bootstrap" binary at its root.
+# 1. The code: a zip of source_dir, with the entry point (bootstrap or the bundled .js) at its root.
 data "archive_file" "code" {
   type        = "zip"
   source_dir  = var.source_dir
   output_path = "${path.module}/build/${local.function_name}.zip"
-  # Zips built on Windows carry no Unix permissions; without this Lambda can't execute bootstrap.
+  # Zips built on Windows carry no Unix permissions; without this Lambda can't execute a custom
+  # runtime's bootstrap (Runtime.InvalidEntrypoint). Node.js only reads its files, so 0755 is harmless.
   output_file_mode = "0755"
 }
 
@@ -63,11 +64,11 @@ resource "aws_cloudwatch_log_group" "this" {
 resource "aws_lambda_function" "this" {
   function_name = local.function_name
   role          = aws_iam_role.this.arn
-  runtime       = "provided.al2023"
-  architectures = ["arm64"]
-  handler       = "bootstrap" # ignored by custom runtimes, but required
+  runtime       = var.runtime
+  architectures = [var.architecture]
+  handler       = var.handler
   filename      = data.archive_file.code.output_path
-  # filename never changes; the hash is what makes a rebuilt binary deploy.
+  # filename never changes; the hash is what makes a rebuilt binary or bundle deploy.
   source_code_hash = data.archive_file.code.output_base64sha256
   memory_size      = var.memory_size
   timeout          = var.timeout
@@ -111,7 +112,8 @@ resource "aws_cloudwatch_metric_alarm" "errors" {
   ok_actions          = [aws_sns_topic.alarms[0].arn]
 }
 
-# Handled errors: each JSON log line with "level":"ERROR" (slog) adds 1 to a custom metric.
+# Handled errors: each JSON log line with "level":"ERROR" adds 1 to a custom metric. Go's slog and
+# Powertools Logger write that; console.error (plain text) and pino (numeric levels) never match.
 resource "aws_cloudwatch_log_metric_filter" "app_errors" {
   count          = local.alarms
   name           = "${local.function_name}-app-errors"
