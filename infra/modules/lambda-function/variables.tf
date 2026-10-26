@@ -15,7 +15,41 @@ variable "name" {
 
 variable "source_dir" {
   type        = string
-  description = "Directory to zip as the function code; must contain the bootstrap binary."
+  description = "Directory to zip as the function code, entry point at its root: the bootstrap binary for provided.* runtimes, the bundled .js file for Node.js."
+}
+
+variable "runtime" {
+  type        = string
+  default     = "provided.al2023"
+  description = "Lambda runtime id: provided.al2023 for a Go binary, or e.g. nodejs22.x."
+
+  validation {
+    condition     = trimspace(var.runtime) != ""
+    error_message = "runtime must be non-empty."
+  }
+}
+
+variable "handler" {
+  type        = string
+  default     = "bootstrap"
+  description = "Entry point. Required but ignored by provided.* runtimes; Node.js uses \"<file>.<export>\", e.g. index.handler."
+
+  validation {
+    condition     = trimspace(var.handler) != ""
+    error_message = "handler must be non-empty."
+  }
+}
+
+# A string, not a list: Lambda accepts exactly one architecture per function.
+variable "architecture" {
+  type        = string
+  default     = "arm64"
+  description = "CPU architecture. arm64 (Graviton) costs about 20% less per GB-second than x86_64."
+
+  validation {
+    condition     = contains(["x86_64", "arm64"], var.architecture)
+    error_message = "architecture must be x86_64 or arm64."
+  }
 }
 
 variable "policy_statements" {

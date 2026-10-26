@@ -27,5 +27,15 @@ out/
 .claude/*.local.md
 .claude/settings.local.json
 
+# Third-party skills installed with ui-ux-pro-max (2026-10-19): used locally, not part of the repo.
+# The repo's own skill, .claude/skills/aws-terraform/, stays tracked.
+.claude/skills/banner-design/
+.claude/skills/brand/
+.claude/skills/design/
+.claude/skills/design-system/
+.claude/skills/slides/
+.claude/skills/ui-styling/
+.claude/skills/ui-ux-pro-max/
+
 # Archify working folders (candidates, receipts, screenshots); finished diagrams live in docs/diagrams/
 .archify/

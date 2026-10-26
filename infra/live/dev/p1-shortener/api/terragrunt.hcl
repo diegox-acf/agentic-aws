@@ -23,11 +23,23 @@ dependency "web" {
   mock_outputs_allowed_terraform_commands = ["init", "validate", "plan", "destroy"]
 }
 
+locals {
+  fn_key = "shortener"
+}
+
 inputs = {
-  name                 = "shortener"
-  lambda_function_name = dependency.fn.outputs.function_name
-  lambda_invoke_arn    = dependency.fn.outputs.invoke_arn
-  routes               = ["POST /links", "GET /{code}", "GET /links/{code}"]
+  name = "shortener"
+  functions = {
+    (local.fn_key) = {
+      invoke_arn    = dependency.fn.outputs.invoke_arn
+      function_name = dependency.fn.outputs.function_name
+    }
+  }
+  routes = {
+    "POST /links"       = local.fn_key
+    "GET /{code}"       = local.fn_key
+    "GET /links/{code}" = local.fn_key
+  }
   cors_origins = [
     "https://${dependency.web.outputs.domain_name}",
     "http://localhost:3000", # pnpm dev
