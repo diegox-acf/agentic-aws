@@ -61,6 +61,20 @@ variable "throttling_burst_limit" {
   description = "Maximum burst of concurrent requests allowed on the stage."
 }
 
+variable "route_throttling" {
+  type = map(object({
+    rate_limit  = number
+    burst_limit = number
+  }))
+  default     = {}
+  description = "Tighter limits for single routes, keyed by route key (e.g. an expensive \"POST /imports\"). Other routes keep the stage limits."
+
+  validation {
+    condition     = alltrue([for r in keys(var.route_throttling) : contains(keys(var.routes), r)])
+    error_message = "every route_throttling key must be a route key in var.routes."
+  }
+}
+
 variable "cors_origins" {
   type        = list(string)
   default     = []

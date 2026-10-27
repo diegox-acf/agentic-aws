@@ -1,0 +1,2 @@
+# dist/ and node_modules/ are ignored by the repo root .gitignore
+coverage/

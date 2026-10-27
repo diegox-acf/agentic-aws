@@ -54,6 +54,17 @@ resource "aws_apigatewayv2_stage" "default" {
     throttling_rate_limit  = var.throttling_rate_limit
   }
 
+  # Per-route overrides: a request that starts a lot of work (one import = up to MAX_ROWS writes)
+  # gets a lower limit than the cheap redirect routes.
+  dynamic "route_settings" {
+    for_each = var.route_throttling
+    content {
+      route_key              = route_settings.key
+      throttling_rate_limit  = route_settings.value.rate_limit
+      throttling_burst_limit = route_settings.value.burst_limit
+    }
+  }
+
   access_log_settings {
     destination_arn = aws_cloudwatch_log_group.access.arn
     format = jsonencode({
@@ -65,6 +76,9 @@ resource "aws_apigatewayv2_stage" "default" {
       integrationError = "$context.integrationErrorMessage"
     })
   }
+
+  # route_settings may only name routes that already exist.
+  depends_on = [aws_apigatewayv2_route.routes]
 }
 
 # Resource-based policy on each function: lets THIS API (any stage, method, path) invoke it.
