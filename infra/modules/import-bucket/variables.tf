@@ -24,7 +24,7 @@ variable "incoming_prefix" {
   }
 }
 
-# Inputs for the M3 resources at the end of main.tf (rule target and queue policy).
+# The EventBridge rule's target and the queue whose policy lets that rule send to it.
 variable "queue_arn" {
   type        = string
   description = "ARN of the SQS queue that receives \"Object Created\" events (the EventBridge rule's target)."
