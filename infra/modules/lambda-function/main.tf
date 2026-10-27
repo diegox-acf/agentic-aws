@@ -81,7 +81,27 @@ resource "aws_lambda_function" "this" {
   depends_on = [aws_cloudwatch_log_group.this, aws_iam_role_policy.this]
 }
 
-# 6. Alarms: on failed invocations and on app errors, published to an SNS topic.
+# 6. Optional SQS trigger. Lambda's pollers receive from the queue and invoke the function with
+#    batches; with ReportBatchItemFailures the function returns the messages that failed, and only
+#    those become visible again (the rest are deleted). maximum_concurrency caps how many
+#    invocations this queue can run at once, so a burst of uploads can't take the account's
+#    concurrency (10 here) away from the API functions.
+resource "aws_lambda_event_source_mapping" "sqs" {
+  count                   = var.sqs_trigger == null ? 0 : 1
+  event_source_arn        = var.sqs_trigger.queue_arn
+  function_name           = aws_lambda_function.this.arn
+  batch_size              = var.sqs_trigger.batch_size
+  function_response_types = ["ReportBatchItemFailures"]
+
+  scaling_config {
+    maximum_concurrency = var.sqs_trigger.maximum_concurrency
+  }
+
+  # The pollers use the function's role: it must be able to receive before polling starts.
+  depends_on = [aws_iam_role_policy.this]
+}
+
+# 7. Alarms: on failed invocations and on app errors, published to an SNS topic.
 locals {
   alarms = var.alarms_enabled ? 1 : 0
 }

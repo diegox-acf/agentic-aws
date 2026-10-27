@@ -1,0 +1,8 @@
+url
+https://aws.amazon.com/lambda/
+https://docs.aws.amazon.com/AmazonS3/latest/userguide/PresignedUrlUploadObject.html
+https://example.com/?q=1
+not a url
+https://good.com@evil.com/
+"https://example.com/with,comma"
+https://example.com/a,extra-column
