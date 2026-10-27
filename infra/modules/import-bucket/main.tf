@@ -91,8 +91,77 @@ resource "aws_s3_bucket_lifecycle_configuration" "imports" {
   }
 }
 
-# TODO(M3): S3 -> EventBridge -> SQS, using var.queue_arn and var.queue_url. You write these:
-#   - aws_s3_bucket_notification with eventbridge = true (without it S3 emits no events)
-#   - aws_cloudwatch_event_rule: Object Created in this bucket under var.incoming_prefix
-#   - aws_cloudwatch_event_target: the imports queue
-#   - aws_sqs_queue_policy: events.amazonaws.com may sqs:SendMessage, only for this rule's ARN
+# --- S3 -> EventBridge -> SQS ---------------------------------------------------------------
+
+# S3 emits no events by default. This sends every event of this bucket to the account's
+# default event bus; picking which ones matter is the rule's job, not the bucket's.
+resource "aws_s3_bucket_notification" "imports" {
+  bucket      = aws_s3_bucket.imports.id
+  eventbridge = true
+}
+
+# The default bus carries events from every AWS service in the account. In a pattern a list
+# means "any of these", and { prefix = ... } matches the start of the string.
+resource "aws_cloudwatch_event_rule" "csv_uploaded" {
+  name        = "${local.bucket_name}-csv-uploaded"
+  description = "Object Created under ${var.incoming_prefix} in ${aws_s3_bucket.imports.id}"
+  event_pattern = jsonencode({
+    source        = ["aws.s3"]
+    "detail-type" = ["Object Created"]
+    detail = {
+      bucket = { name = [aws_s3_bucket.imports.id] }
+      object = { key = [{ prefix = var.incoming_prefix }] }
+    }
+  })
+}
+
+# A standard SQS target needs no role: EventBridge is allowed in by the queue policy below.
+resource "aws_cloudwatch_event_target" "imports_queue" {
+  rule = aws_cloudwatch_event_rule.csv_uploaded.name
+  arn  = var.queue_arn
+}
+
+# Resource-based policy on the queue. Without the aws:SourceArn condition any EventBridge
+# rule, in any account, could use this grant to fill the queue (confused deputy). If this
+# is wrong the rule still counts MatchedEvents, but every delivery is a FailedInvocation.
+data "aws_iam_policy_document" "queue" {
+  statement {
+    sid       = "AllowCsvUploadedRule"
+    effect    = "Allow"
+    actions   = ["sqs:SendMessage"]
+    resources = [var.queue_arn]
+    principals {
+      type        = "Service"
+      identifiers = ["events.amazonaws.com"]
+    }
+    condition {
+      test     = "ArnEquals"
+      variable = "aws:SourceArn"
+      values   = [aws_cloudwatch_event_rule.csv_uploaded.arn]
+    }
+  }
+
+  # Same rule as the bucket: refuse plain HTTP. EventBridge and Lambda's pollers use TLS.
+  statement {
+    sid       = "DenyInsecureTransport"
+    effect    = "Deny"
+    actions   = ["sqs:*"]
+    resources = [var.queue_arn]
+    principals {
+      type        = "*"
+      identifiers = ["*"]
+    }
+    condition {
+      test     = "Bool"
+      variable = "aws:SecureTransport"
+      values   = ["false"]
+    }
+  }
+}
+
+# A queue has one policy, and this module owns all of it: don't attach another
+# aws_sqs_queue_policy to the same queue, or the two overwrite each other on every apply.
+resource "aws_sqs_queue_policy" "imports" {
+  queue_url = var.queue_url
+  policy    = data.aws_iam_policy_document.queue.json
+}
