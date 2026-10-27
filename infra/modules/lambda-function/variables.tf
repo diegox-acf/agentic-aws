@@ -96,6 +96,25 @@ variable "timeout" {
   }
 }
 
+variable "sqs_trigger" {
+  type = object({
+    queue_arn           = string
+    batch_size          = optional(number, 1)
+    maximum_concurrency = optional(number, 2)
+  })
+  default     = null
+  description = "Invoke the function from an SQS queue (event source mapping, with ReportBatchItemFailures). Null: no trigger. The role also needs sqs:ReceiveMessage, DeleteMessage and GetQueueAttributes on the queue (policy_statements)."
+
+  # A conditional, not ||: it guarantees the attributes of a null trigger are never read.
+  validation {
+    condition = var.sqs_trigger == null ? true : (
+      var.sqs_trigger.batch_size >= 1 && var.sqs_trigger.batch_size <= 10 &&
+      var.sqs_trigger.maximum_concurrency >= 2 && var.sqs_trigger.maximum_concurrency <= 1000
+    )
+    error_message = "sqs_trigger.batch_size must be 1-10 and maximum_concurrency 2-1000 (AWS's minimum is 2)."
+  }
+}
+
 variable "alarms_enabled" {
   type        = bool
   default     = true

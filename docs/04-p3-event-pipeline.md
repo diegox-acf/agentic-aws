@@ -133,11 +133,12 @@ Then the pieces people forget, which the security reviewer should catch if you d
 cd infra/live/dev/p3-importer && terragrunt run --all apply
 api=$(cd ../p1-shortener/api && terragrunt output -raw api_endpoint)
 
-# get a presigned URL, upload the CSV straight to S3, then poll the import record
+# get a presigned POST, upload the CSV straight to S3, then poll the import record
 r=$(curl -s -X POST "$api/imports")
 import_id=$(jq -r .importId <<<"$r")
-upload_url=$(jq -r .uploadUrl <<<"$r")
-curl -s -X PUT -H "content-type: text/csv" --data-binary @sample.csv "$upload_url"
+# A presigned POST is a form: every field from the response first, the file last (ADR 0004).
+form=(); while IFS= read -r f; do form+=(-F "$f"); done < <(jq -r '.upload.fields | to_entries[] | "\(.key)=\(.value)"' <<<"$r")
+curl -s -o /dev/null -w "%{http_code}\n" "${form[@]}" -F "file=@apps/p3-importer/test/fixtures/sample.csv" "$(jq -r .upload.url <<<"$r")"  # 204
 curl -s "$api/imports/$import_id" | jq
 ```
 
