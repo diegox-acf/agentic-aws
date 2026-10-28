@@ -20,10 +20,11 @@ const CONFIG: ImporterConfig = {
   maxUploadBytes: 1_048_576,
   maxRows: 1000,
   writeConcurrency: 10,
+  maxReceiveCount: 3,
 };
 const OBJECT: ImportObject = { bucket: "imports-bucket", key: `incoming/${IMPORT_ID}.csv`, size: 100, importId: IMPORT_ID };
 
-const START = "attribute_exists(importId) AND #status IN (:pending, :processing)";
+const START = "attribute_exists(importId) AND (#status IN (:pending, :processing) OR gaveUp = :true)";
 const FINISH = "#status = :processing";
 
 type Log = ProcessDeps["logger"];
@@ -64,10 +65,57 @@ describe("processImport", () => {
 
     const summary = await processImport(deps, OBJECT);
 
-    expect(summary).toStrictEqual({ importId: IMPORT_ID, status: "DONE", created: 2, rejected: 2 });
+    const rejectedSample = [
+      { row: 2, reason: "invalid URL" },
+      { row: 4, reason: "expected 1 column, got 2" },
+    ];
+    expect(summary).toStrictEqual({ importId: IMPORT_ID, status: "DONE", created: 2, rejected: 2, rejectedSample });
     expect(puts().map((p) => p?.Item?.url)).toStrictEqual(["https://a.io", "https://b.io"]);
-    expect(finishCalls()[0]?.ExpressionAttributeValues).toMatchObject({ ":status": "DONE", ":created": 2, ":rejected": 2 });
+    expect(finishCalls()[0]?.ExpressionAttributeValues).toMatchObject({ ":status": "DONE", ":created": 2, ":rejected": 2, ":rejectedSample": rejectedSample });
     expect(s3Mock.commandCalls(GetObjectCommand)[0]?.args[0].input).toStrictEqual({ Bucket: OBJECT.bucket, Key: OBJECT.key });
+  });
+
+  // M5 M1: without reasons, "0 created, 1000 rejected" can't be explained (e.g. a 2-column file).
+  it("keeps only the first 10 rejected rows, with why each was rejected", async () => {
+    uploaded(["https://ok.io", ...Array.from({ length: 12 }, (_, i) => `bad ${i}`)].join("\n"));
+
+    const summary = await processImport(deps, OBJECT);
+
+    expect(summary).toMatchObject({ status: "DONE", created: 1, rejected: 12 });
+    expect(summary?.rejectedSample).toHaveLength(10);
+    expect(summary?.rejectedSample?.[0]).toStrictEqual({ row: 2, reason: "invalid URL" });
+  });
+
+  it("names a code collision as the reason a valid row was rejected", async () => {
+    uploaded("https://a.io\nhttps://b.io\n");
+    // Row 1's codes all hold someone else's links; row 2 writes fine.
+    ddbMock.on(PutCommand).callsFake((input: { Item: { url: string } }) => {
+      if (input.Item.url === "https://a.io") {
+        throw new ConditionalCheckFailedException({ message: "x", $metadata: {}, Item: { importId: { S: "other" }, url: { S: "https://x.io" } } });
+      }
+      return {};
+    });
+
+    const summary = await processImport(deps, OBJECT);
+
+    expect(summary).toMatchObject({ status: "DONE", created: 1, rejected: 1, rejectedSample: [{ row: 1, reason: "short code collision" }] });
+  });
+
+  it("fails an import in which every row was rejected, so it doesn't look like a success", async () => {
+    uploaded("not a url\nhttps://a.io,label\n");
+
+    const summary = await processImport(deps, OBJECT);
+
+    expect(summary).toMatchObject({ status: "FAILED", created: 0, rejected: 2, error: "every row was rejected" });
+    expect(summary?.rejectedSample).toHaveLength(2);
+  });
+
+  it.each(["", "url\n", "\n\n"])("fails a file with no rows (%j)", async (csv) => {
+    uploaded(csv);
+
+    const summary = await processImport(deps, OBJECT);
+
+    expect(summary).toStrictEqual({ importId: IMPORT_ID, status: "FAILED", created: 0, rejected: 0, error: "no rows" });
   });
 
   it("writes all rows of a file larger than one batch of concurrent writes", async () => {

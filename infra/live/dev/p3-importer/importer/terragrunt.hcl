@@ -62,6 +62,7 @@ inputs = {
     MAX_UPLOAD_BYTES        = "1048576" # same limit as presign's POST policy, checked again here
     MAX_ROWS                = "1000"    # caps the DynamoDB writes one unauthenticated upload can cause
     WRITE_CONCURRENCY       = "10"
+    MAX_RECEIVE_COUNT       = tostring(local.p3.max_receive_count) # same number as the queue's redrive
     POWERTOOLS_SERVICE_NAME = "importer"
   }
   policy_statements = [

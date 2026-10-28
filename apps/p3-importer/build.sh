@@ -20,7 +20,7 @@ for fn in presign importer; do
   # Fails the build if the bundle can't even load (e.g. a missing require shim). The config
   # validates its env vars at load, so give it placeholders; nothing here calls AWS.
   IMPORTS_TABLE=build-smoke BUCKET_NAME=build-smoke LINKS_TABLE=build-smoke AWS_REGION=us-east-1 \
-    RESULTS_TOPIC_ARN=arn:aws:sns:us-east-1:111111111111:build-smoke \
+    RESULTS_TOPIC_ARN=arn:aws:sns:us-east-1:111111111111:build-smoke MAX_RECEIVE_COUNT=3 \
     node -e "import('./dist/${fn}/index.mjs').then(m => { if (typeof m.handler !== 'function') process.exit(1) })"
 done
 

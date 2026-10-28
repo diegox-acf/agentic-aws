@@ -21,6 +21,13 @@ describe("toView", () => {
     });
   });
 
+  it("includes the sample of rejected rows, so a caller can see why rows were rejected", () => {
+    const rejectedSample = [{ row: 2, reason: "invalid URL" }];
+    const done: ImportRecord = { ...pending, status: "DONE", created: 1, rejected: 1, rejectedSample };
+
+    expect(toView(done, NOW)).toMatchObject({ rejectedSample });
+  });
+
   it("includes the counts and finish time of a finished import", () => {
     const done: ImportRecord = {
       ...pending,

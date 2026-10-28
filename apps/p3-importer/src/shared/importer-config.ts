@@ -12,6 +12,9 @@ const importerEnv = z.object({
   MAX_ROWS: z.coerce.number().int().min(1).default(1000),
   // Conditional PutItems in flight at once. 25 matches what one BatchWriteItem would carry.
   WRITE_CONCURRENCY: z.coerce.number().int().min(1).max(25).default(10),
+  // The queue's maxReceiveCount: on that delivery the importer marks the import FAILED. No default,
+  // so it can't silently disagree with the queue (p3.hcl sets both).
+  MAX_RECEIVE_COUNT: z.coerce.number().int().min(1).max(1000),
 });
 
 export interface ImporterConfig {
@@ -22,6 +25,7 @@ export interface ImporterConfig {
   maxUploadBytes: number;
   maxRows: number;
   writeConcurrency: number;
+  maxReceiveCount: number;
 }
 
 export function loadImporterConfig(env: Record<string, string | undefined>): ImporterConfig {
@@ -39,5 +43,6 @@ export function loadImporterConfig(env: Record<string, string | undefined>): Imp
     maxUploadBytes: values.MAX_UPLOAD_BYTES,
     maxRows: values.MAX_ROWS,
     writeConcurrency: values.WRITE_CONCURRENCY,
+    maxReceiveCount: values.MAX_RECEIVE_COUNT,
   };
 }

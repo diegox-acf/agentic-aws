@@ -9,10 +9,15 @@ export type StartResult =
   | { outcome: "finished"; summary: ImportSummary; notified: boolean };
 
 export interface ImportsRepo {
-  /** PENDING|PROCESSING -> PROCESSING. A guard, not a lock: a crashed run's redelivery may start again. */
+  /**
+   * PENDING|PROCESSING -> PROCESSING. A guard, not a lock: a crashed run's redelivery may start again.
+   * A given-up import starts again too: that's a DLQ redrive, a deliberate retry.
+   */
   start(importId: string, now: Date): Promise<StartResult>;
   /** PROCESSING -> DONE|FAILED. False when another delivery finished it first. */
   finish(summary: ImportSummary, now: Date): Promise<boolean>;
+  /** PENDING|PROCESSING -> FAILED, marked gaveUp. False when the import is already finished. */
+  giveUp(importId: string, error: string, now: Date): Promise<boolean>;
   markNotified(importId: string): Promise<void>;
 }
 
@@ -24,10 +29,11 @@ export function importsRepo(ddb: DynamoDBDocumentClient, importsTable: string): 
           new UpdateCommand({
             TableName: importsTable,
             Key: { importId },
-            UpdateExpression: "SET #status = :processing, startedAt = :now ADD attempts :one",
-            ConditionExpression: "attribute_exists(importId) AND #status IN (:pending, :processing)",
-            ExpressionAttributeNames: { "#status": "status" }, // "status" is a DynamoDB reserved word
-            ExpressionAttributeValues: { ":pending": "PENDING", ":processing": "PROCESSING", ":now": now.toISOString(), ":one": 1 },
+            // REMOVE clears a given-up run's failure; on any other record those attributes don't exist.
+            UpdateExpression: "SET #status = :processing, startedAt = :now REMOVE gaveUp, #error, finishedAt ADD attempts :one",
+            ConditionExpression: "attribute_exists(importId) AND (#status IN (:pending, :processing) OR gaveUp = :true)",
+            ExpressionAttributeNames: { "#status": "status", "#error": "error" }, // "status" is a DynamoDB reserved word
+            ExpressionAttributeValues: { ":pending": "PENDING", ":processing": "PROCESSING", ":true": true, ":now": now.toISOString(), ":one": 1 },
             ReturnValuesOnConditionCheckFailure: "ALL_OLD",
           }),
         );
@@ -46,25 +52,56 @@ export function importsRepo(ddb: DynamoDBDocumentClient, importsTable: string): 
     },
 
     async finish(summary, now) {
-      const { importId, status, created, rejected, error } = summary;
+      const { importId, status, created, rejected, rejectedSample, error } = summary;
+      // DynamoDB rejects names or values the expressions don't use, so set these only when present.
+      const optional = Object.entries({ error, rejectedSample }).filter(([, value]) => value !== undefined);
       try {
         await ddb.send(
           new UpdateCommand({
             TableName: importsTable,
             Key: { importId },
-            UpdateExpression:
-              "SET #status = :status, created = :created, rejected = :rejected, finishedAt = :now" +
-              (error === undefined ? "" : ", #error = :error"),
+            UpdateExpression: [
+              "SET #status = :status, created = :created, rejected = :rejected, finishedAt = :now",
+              ...optional.map(([name]) => `#${name} = :${name}`),
+            ].join(", "),
             ConditionExpression: "#status = :processing",
-            // DynamoDB rejects names or values the expressions don't use, so add #error only when set.
-            ExpressionAttributeNames: { "#status": "status", ...(error === undefined ? {} : { "#error": "error" }) },
+            ExpressionAttributeNames: { "#status": "status", ...Object.fromEntries(optional.map(([name]) => [`#${name}`, name])) },
             ExpressionAttributeValues: {
               ":status": status,
               ":created": created,
               ":rejected": rejected,
               ":now": now.toISOString(),
               ":processing": "PROCESSING",
-              ...(error === undefined ? {} : { ":error": error }),
+              ...Object.fromEntries(optional.map(([name, value]) => [`:${name}`, value])),
+            },
+          }),
+        );
+        return true;
+      } catch (caught) {
+        if (caught instanceof ConditionalCheckFailedException) {
+          return false;
+        }
+        throw caught;
+      }
+    },
+
+    async giveUp(importId, error, now) {
+      try {
+        await ddb.send(
+          new UpdateCommand({
+            TableName: importsTable,
+            Key: { importId },
+            UpdateExpression: "SET #status = :failed, #error = :error, finishedAt = :now, gaveUp = :true",
+            // A DONE import whose announcement failed stays DONE: its links and counts are real.
+            ConditionExpression: "#status IN (:pending, :processing)",
+            ExpressionAttributeNames: { "#status": "status", "#error": "error" },
+            ExpressionAttributeValues: {
+              ":failed": "FAILED",
+              ":error": error,
+              ":now": now.toISOString(),
+              ":true": true,
+              ":pending": "PENDING",
+              ":processing": "PROCESSING",
             },
           }),
         );
@@ -102,6 +139,7 @@ function toSummary(record: ImportRecord): ImportSummary {
     status,
     created: record.created ?? 0,
     rejected: record.rejected ?? 0,
+    ...(record.rejectedSample === undefined ? {} : { rejectedSample: record.rejectedSample }),
     ...(record.error === undefined ? {} : { error: record.error }),
   };
 }

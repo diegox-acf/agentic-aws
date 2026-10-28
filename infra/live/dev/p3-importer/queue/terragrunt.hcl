@@ -14,5 +14,5 @@ inputs = {
   name = "imports"
   # Longer than any importer run, so a message isn't redelivered while still being processed.
   visibility_timeout_seconds = 6 * local.p3.importer_timeout_seconds
-  max_receive_count          = 3
+  max_receive_count          = local.p3.max_receive_count
 }

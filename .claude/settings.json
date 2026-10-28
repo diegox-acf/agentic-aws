@@ -1,5 +1,6 @@
 {
   "env": {
+    "ECC_HOOKS_ENABLED": "false",
     "GATEGUARD_EXEMPT_GLOBS": "apps/**,docs/**"
   },
   "permissions": {

@@ -6,6 +6,7 @@ const REQUIRED = {
   IMPORTS_TABLE: "imports",
   BUCKET_NAME: "imports-bucket",
   RESULTS_TOPIC_ARN: "arn:aws:sns:us-east-1:111111111111:results",
+  MAX_RECEIVE_COUNT: "3",
 };
 
 describe("loadImporterConfig", () => {
@@ -18,7 +19,14 @@ describe("loadImporterConfig", () => {
       maxUploadBytes: 1_048_576,
       maxRows: 1000,
       writeConcurrency: 10,
+      maxReceiveCount: 3,
     });
+  });
+
+  // No default: it must equal the queue's maxReceiveCount, or the importer gives up too early
+  // (FAILED while SQS still retries) or never (PROCESSING forever).
+  it.each([undefined, "0", "1001", "abc"])("rejects MAX_RECEIVE_COUNT=%s", (value) => {
+    expect(() => loadImporterConfig({ ...REQUIRED, MAX_RECEIVE_COUNT: value })).toThrow(/MAX_RECEIVE_COUNT/);
   });
 
   it("parses numeric overrides", () => {
