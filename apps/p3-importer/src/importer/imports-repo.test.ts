@@ -26,9 +26,35 @@ describe("start", () => {
     expect(updateInputs()[0]).toMatchObject({
       TableName: "imports",
       Key: { importId: IMPORT_ID },
-      ConditionExpression: "attribute_exists(importId) AND #status IN (:pending, :processing)",
+      ConditionExpression: "attribute_exists(importId) AND (#status IN (:pending, :processing) OR gaveUp = :true)",
       ExpressionAttributeValues: expect.objectContaining({ ":pending": "PENDING", ":processing": "PROCESSING", ":now": NOW.toISOString(), ":one": 1 }),
       ReturnValuesOnConditionCheckFailure: "ALL_OLD",
+    });
+  });
+
+  it("starts an import it gave up on again (a DLQ redrive), clearing the old failure", async () => {
+    ddbMock.on(UpdateCommand).resolves({});
+
+    await repo.start(IMPORT_ID, NOW);
+
+    expect(updateInputs()[0]?.ConditionExpression).toContain("OR gaveUp = :true");
+    expect(updateInputs()[0]?.ExpressionAttributeValues).toMatchObject({ ":true": true });
+    expect(updateInputs()[0]?.UpdateExpression).toContain("REMOVE gaveUp, #error, finishedAt");
+  });
+
+  it("returns the rejected-row sample with a finished import's summary", async () => {
+    ddbMock.on(UpdateCommand).rejects(
+      conditionFailed({
+        importId: { S: IMPORT_ID },
+        status: { S: "DONE" },
+        created: { N: "1" },
+        rejected: { N: "1" },
+        rejectedSample: { L: [{ M: { row: { N: "2" }, reason: { S: "invalid URL" } } }] },
+      }),
+    );
+
+    await expect(repo.start(IMPORT_ID, NOW)).resolves.toMatchObject({
+      summary: { importId: IMPORT_ID, status: "DONE", created: 1, rejected: 1, rejectedSample: [{ row: 2, reason: "invalid URL" }] },
     });
   });
 
@@ -104,6 +130,16 @@ describe("finish", () => {
     expect(updateInputs()[0]?.ExpressionAttributeValues).toMatchObject({ ":error": "too big" });
   });
 
+  it("stores the sample of rejected rows when there is one", async () => {
+    ddbMock.on(UpdateCommand).resolves({});
+    const rejectedSample = [{ row: 3, reason: "invalid URL" }];
+
+    await repo.finish({ importId: IMPORT_ID, status: "DONE", created: 2, rejected: 1, rejectedSample }, NOW);
+
+    expect(updateInputs()[0]?.UpdateExpression).toContain("#rejectedSample = :rejectedSample");
+    expect(updateInputs()[0]?.ExpressionAttributeValues).toMatchObject({ ":rejectedSample": rejectedSample });
+  });
+
   it("returns false when another delivery finished it first", async () => {
     ddbMock.on(UpdateCommand).rejects(conditionFailed());
 
@@ -114,6 +150,38 @@ describe("finish", () => {
     ddbMock.on(UpdateCommand).rejects(new Error("throttled"));
 
     await expect(repo.finish({ importId: IMPORT_ID, status: "DONE", created: 1, rejected: 0 }, NOW)).rejects.toThrow("throttled");
+  });
+});
+
+describe("giveUp", () => {
+  it("marks an unfinished import FAILED with the reason, as one a redrive may retry", async () => {
+    ddbMock.on(UpdateCommand).resolves({});
+
+    await expect(repo.giveUp(IMPORT_ID, "gave up after 3 deliveries: boom", NOW)).resolves.toBe(true);
+
+    expect(updateInputs()[0]).toMatchObject({
+      Key: { importId: IMPORT_ID },
+      UpdateExpression: "SET #status = :failed, #error = :error, finishedAt = :now, gaveUp = :true",
+      ConditionExpression: "#status IN (:pending, :processing)",
+      ExpressionAttributeValues: expect.objectContaining({
+        ":failed": "FAILED",
+        ":error": "gave up after 3 deliveries: boom",
+        ":now": NOW.toISOString(),
+        ":true": true,
+      }),
+    });
+  });
+
+  it("returns false for an import that finished anyway (only its announcement failed)", async () => {
+    ddbMock.on(UpdateCommand).rejects(conditionFailed());
+
+    await expect(repo.giveUp(IMPORT_ID, "x", NOW)).resolves.toBe(false);
+  });
+
+  it("rethrows other errors", async () => {
+    ddbMock.on(UpdateCommand).rejects(new Error("throttled"));
+
+    await expect(repo.giveUp(IMPORT_ID, "x", NOW)).rejects.toThrow("throttled");
   });
 });
 

@@ -39,6 +39,16 @@ Each SQS delivery gets a new `messageId`, so it cannot identify "the same file";
    with a conditional `PROCESSING → DONE|FAILED`. Only the delivery that wins that transition
    notifies. A crashed run leaves `PROCESSING`; the redelivery re-runs from row 1 and every row it
    already wrote resolves as "ours".
+
+   *Added in M5 (silent failures):* if the last delivery (`MAX_RECEIVE_COUNT`, the queue's
+   `maxReceiveCount`) throws as well, the importer marks the import `FAILED` with
+   `gaveUp = true` and a generic reason ("gave up after 3 deliveries; see the importer logs":
+   `GET` is public, and SDK messages can name roles or the account), then lets the message go to
+   the DLQ. Without that the record would stay `PROCESSING` until its TTL. A given-up import has no
+   counts: only the crashed run knew them, and links it wrote before failing do exist. `start` also accepts a
+   given-up import, so a DLQ redrive is a real retry. An import that creates no link at all is
+   `FAILED` ("no rows", "every row was rejected"), and the first 10 rejected rows are kept with
+   their reasons. A Lambda timeout never reaches the give-up code; M6 handles long files.
 3. **Presigned POST with a policy**, not a presigned PUT. `POST /imports` returns
    `{ importId, upload: { url, fields } }`; the policy carries
    `["content-length-range", 1, 1048576]` and `["eq", "$Content-Type", "text/csv"]`, which S3

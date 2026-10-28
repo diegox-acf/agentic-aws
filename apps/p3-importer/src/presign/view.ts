@@ -11,13 +11,14 @@ export function toView(record: ImportRecord, now: Date): ImportView | null {
   if (record.expiresAt <= now.getTime() / 1000) {
     return null;
   }
-  const { importId, status, createdAt, created, rejected, finishedAt, error } = record;
+  const { importId, status, createdAt, created, rejected, rejectedSample, finishedAt, error } = record;
   return {
     importId,
     status,
     createdAt,
     ...(created === undefined ? {} : { created }),
     ...(rejected === undefined ? {} : { rejected }),
+    ...(rejectedSample === undefined ? {} : { rejectedSample }),
     ...(finishedAt === undefined ? {} : { finishedAt }),
     ...(error === undefined ? {} : { error }),
   };

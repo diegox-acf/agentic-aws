@@ -14,6 +14,14 @@ export function isImportId(value: string): boolean {
   return IMPORT_ID.test(value);
 }
 
+/** A rejected row and why. Only the first MAX_REJECTED_SAMPLE are kept: enough to explain a file. */
+export interface RejectedRow {
+  row: number; // 1-based data row, header not counted
+  reason: string;
+}
+
+export const MAX_REJECTED_SAMPLE = 10;
+
 /** The item as stored in DynamoDB. */
 export interface ImportRecord {
   importId: string; // UUID, the hash key
@@ -21,13 +29,15 @@ export interface ImportRecord {
   createdAt: string; // RFC 3339
   expiresAt: number; // unix seconds; the table's TTL attribute
   created?: number; // links written (set when the importer finishes)
-  rejected?: number; // rows rejected (invalid URL, collision)
+  rejected?: number; // rows rejected (invalid URL, wrong columns, collision)
+  rejectedSample?: RejectedRow[]; // the first rejected rows, when any were
   finishedAt?: string; // RFC 3339
   error?: string; // why the file couldn't be processed (status FAILED)
   // Internal bookkeeping, never shown by GET:
   attempts?: number; // importer runs that started this import (redeliveries included)
   startedAt?: string; // RFC 3339, the latest run's start
   notified?: boolean; // the results summary was published (set after SNS accepts it)
+  gaveUp?: boolean; // FAILED because every delivery threw; a DLQ redrive may start it again
 }
 
 /** How a finished import ended, as the importer records and announces it. */
@@ -36,6 +46,7 @@ export interface ImportSummary {
   status: Extract<ImportStatus, "DONE" | "FAILED">;
   created: number;
   rejected: number;
+  rejectedSample?: RejectedRow[];
   error?: string;
 }
 
@@ -46,6 +57,7 @@ export interface ImportView {
   createdAt: string;
   created?: number;
   rejected?: number;
+  rejectedSample?: RejectedRow[];
   finishedAt?: string;
   error?: string;
 }

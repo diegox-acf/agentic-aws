@@ -3,7 +3,7 @@ import type { Logger } from "@aws-lambda-powertools/logger";
 import { GetObjectCommand, NoSuchKey, type S3Client } from "@aws-sdk/client-s3";
 import type { DynamoDBDocumentClient } from "@aws-sdk/lib-dynamodb";
 import { CsvError } from "csv-parse";
-import type { ImportSummary } from "../domain/imports";
+import { MAX_REJECTED_SAMPLE, type ImportSummary, type RejectedRow } from "../domain/imports";
 import type { ImportObject } from "../domain/s3-event";
 import { isValidUrl } from "../domain/url";
 import type { ImporterConfig } from "../shared/importer-config";
@@ -25,10 +25,12 @@ type Outcome = Omit<ImportSummary, "importId">;
  * Imports one uploaded file. Returns the summary to announce, or undefined when there is nothing
  * to announce (no record, already announced, or another delivery finished it).
  *
- * Permanent problems (too large, too many rows, file gone, unparseable CSV) finish the import as
- * FAILED; a retry couldn't fix them. Rows are written while the file streams, so a FAILED import
- * can be partial: `created` counts the links that exist. Anything else is thrown, the import stays
- * PROCESSING, and SQS redelivers the message: safe, because every row maps to the same codes (ADR 0004).
+ * Permanent problems (too large, too many rows, file gone, unparseable CSV, nothing created) finish
+ * the import as FAILED; a retry couldn't fix them. Rows are written while the file streams, so a
+ * FAILED import can be partial: `created` counts the links that exist. The first rejected rows are
+ * kept with their reasons (rejectedSample). Anything else is thrown, the import stays PROCESSING,
+ * and SQS redelivers the message: safe, because every row maps to the same codes (ADR 0004). The
+ * handler marks it FAILED if the last delivery throws too.
  */
 export async function processImport(deps: ProcessDeps, object: ImportObject): Promise<ImportSummary | undefined> {
   const { ddb, clock, logger, config } = deps;
@@ -67,7 +69,24 @@ export async function processImport(deps: ProcessDeps, object: ImportObject): Pr
 
 async function importRows(deps: ProcessDeps, object: ImportObject): Promise<Outcome> {
   const { ddb, s3, clock, config } = deps;
-  const failed = (error: string, created = 0, rejected = 0): Outcome => ({ status: "FAILED", created, rejected, error });
+
+  let created = 0;
+  let rejected = 0;
+  const rejectedSample: RejectedRow[] = [];
+  const reject = (row: number, reason: string): void => {
+    rejected++;
+    if (rejectedSample.length < MAX_REJECTED_SAMPLE) {
+      rejectedSample.push({ row, reason });
+    }
+  };
+  const outcome = (status: Outcome["status"], error?: string): Outcome => ({
+    status,
+    created,
+    rejected,
+    ...(rejectedSample.length === 0 ? {} : { rejectedSample: [...rejectedSample] }),
+    ...(error === undefined ? {} : { error }),
+  });
+  const failed = (error: string): Outcome => outcome("FAILED", error);
 
   // The size is in the event: an oversized file is refused before a single byte is downloaded.
   if (object.size > config.maxUploadBytes) {
@@ -89,17 +108,19 @@ async function importRows(deps: ProcessDeps, object: ImportObject): Promise<Outc
     throw error;
   }
 
-  let created = 0;
-  let rejected = 0;
   let batch: { row: number; url: string }[] = [];
   const flush = async (): Promise<void> => {
-    const outcomes = await Promise.all(
-      batch.map(({ row, url }) => writeImportedLink(ddb, config.linksTable, { importId: object.importId, row, url, now: clock() })),
-    );
+    const rows = batch;
     batch = [];
-    for (const outcome of outcomes) {
+    const written = await Promise.all(
+      rows.map(async ({ row, url }) => ({
+        row,
+        outcome: await writeImportedLink(ddb, config.linksTable, { importId: object.importId, row, url, now: clock() }),
+      })),
+    );
+    for (const { row, outcome } of written) {
       if (outcome === "collision") {
-        rejected++;
+        reject(row, "short code collision");
       } else {
         created++; // "already-imported" counts too: the row's link exists, from an earlier delivery
       }
@@ -109,10 +130,14 @@ async function importRows(deps: ProcessDeps, object: ImportObject): Promise<Outc
   try {
     for await (const row of readUrlRows(body)) {
       if (row.row > config.maxRows) {
-        return failed(`more than ${config.maxRows} rows`, created, rejected); // stops the download too
+        return failed(`more than ${config.maxRows} rows`); // stops the download too
       }
-      if ("error" in row || !isValidUrl(row.url)) {
-        rejected++;
+      if ("error" in row) {
+        reject(row.row, row.error);
+        continue;
+      }
+      if (!isValidUrl(row.url)) {
+        reject(row.row, "invalid URL");
         continue;
       }
       batch.push(row);
@@ -123,9 +148,13 @@ async function importRows(deps: ProcessDeps, object: ImportObject): Promise<Outc
     await flush();
   } catch (error) {
     if (error instanceof CsvError) {
-      return failed(`invalid CSV: ${error.message}`, created, rejected);
+      return failed(`invalid CSV: ${error.message}`);
     }
     throw error;
   }
-  return { status: "DONE", created, rejected };
+  // An import that created nothing isn't a success, even if no step went wrong.
+  if (created === 0) {
+    return failed(rejected === 0 ? "no rows" : "every row was rejected");
+  }
+  return outcome("DONE");
 }
