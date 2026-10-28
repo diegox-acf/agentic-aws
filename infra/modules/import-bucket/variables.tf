@@ -35,6 +35,11 @@ variable "queue_url" {
   description = "URL of that queue, for its aws_sqs_queue_policy."
 }
 
+variable "alarm_topic_arn" {
+  type        = string
+  description = "SNS topic for the alarm on undelivered upload events (the imports queue's alarm topic)."
+}
+
 variable "incoming_expiration_days" {
   type        = number
   default     = 7

@@ -159,6 +159,26 @@ data "aws_iam_policy_document" "queue" {
   }
 }
 
+# EventBridge retries a failed delivery for up to 24 hours, then drops the event: the upload is
+# never imported and its record stays PENDING, with no error anywhere. FailedInvocations counts
+# those failed deliveries (e.g. a broken queue policy), so this alarm is the only signal.
+resource "aws_cloudwatch_metric_alarm" "csv_uploaded_failed_invocations" {
+  alarm_name          = "${aws_cloudwatch_event_rule.csv_uploaded.name}-failed-invocations"
+  alarm_description   = "EventBridge couldn't deliver upload events to the imports queue (check the queue policy). Those uploads stay PENDING."
+  namespace           = "AWS/Events"
+  metric_name         = "FailedInvocations"
+  dimensions          = { RuleName = aws_cloudwatch_event_rule.csv_uploaded.name }
+  statistic           = "Sum"
+  period              = 300
+  evaluation_periods  = 1
+  comparison_operator = "GreaterThanThreshold"
+  threshold           = 0
+  # The metric only exists while there are failures: no data is healthy.
+  treat_missing_data = "notBreaching"
+  alarm_actions      = [var.alarm_topic_arn]
+  ok_actions         = [var.alarm_topic_arn]
+}
+
 # A queue has one policy, and this module owns all of it: don't attach another
 # aws_sqs_queue_policy to the same queue, or the two overwrite each other on every apply.
 resource "aws_sqs_queue_policy" "imports" {
