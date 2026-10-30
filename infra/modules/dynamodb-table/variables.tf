@@ -29,3 +29,14 @@ variable "ttl_attribute" {
     error_message = "ttl_attribute must be null or a non-empty attribute name."
   }
 }
+
+variable "max_write_request_units" {
+  type        = number
+  default     = null
+  description = "Most write request units per second the table accepts (on-demand). If null, no cap."
+
+  validation {
+    condition     = var.max_write_request_units == null ? true : var.max_write_request_units >= 1
+    error_message = "max_write_request_units must be null or at least 1."
+  }
+}
